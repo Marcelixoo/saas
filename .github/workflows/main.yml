@@ -1,4 +1,4 @@
-name: AI Code Reviewer
+name: AI Code Review
 
 on:
   pull_request:
@@ -14,9 +14,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: AI Code Reviewer
-        uses: Marcelixoo/ai-code-reviewer@main
+        uses: villesau/ai-codereviewer@v2.7.0
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_MODEL: "gpt-5-nano"
+          OPENAI_API_MODEL: "gpt-4.1-nano"
           exclude: "**/*.json, **/*.md"

@@ -4,7 +4,11 @@ import (
 	"mini-search-platform/internal/adapters"
 	"mini-search-platform/internal/database"
 	"mini-search-platform/internal/handlers"
+	"mini-search-platform/internal/middleware"
 	"mini-search-platform/pkg/sqlite"
+	"os"
+	"strconv"
+	"time"
 
 	"mini-search-platform/internal/search"
 
@@ -31,6 +35,15 @@ func main() {
 
 	sync := search.NewIndexSyncManager(engine, articles, tags)
 
+	searchRateLimit := 60
+	if limit := os.Getenv("SEARCH_RATE_LIMIT"); limit != "" {
+		if val, err := strconv.Atoi(limit); err == nil && val > 0 {
+			searchRateLimit = val
+		}
+	}
+	rateLimiter := middleware.NewRateLimiter(searchRateLimit)
+	rateLimiter.Cleanup(5 * time.Minute)
+
 	r := gin.Default()
 	// resource: articles
 	r.POST("/articles", handlers.AddArticle(articles, authors, tags, sync))
@@ -48,8 +61,8 @@ func main() {
 	r.GET("/tags/:label", handlers.GetTagByLabel(tags))
 	r.GET("/tags/:label/articles", handlers.FindArticlesByLabels(articles, tags))
 
-	// resource: search
-	r.GET("/search", handlers.SearchArticles(engine))
+	// resource: search (with rate limiting)
+	r.GET("/search", rateLimiter.Middleware(), handlers.SearchArticles(engine))
 
 	r.Run(":8080")
 }

@@ -48,6 +48,11 @@ jobs:
         run: |
           coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Total test coverage: ${coverage}%"
-          if (( $(echo "$coverage < 50" | bc -l) )); then
-            echo "Warning: Test coverage is below 50%"
+          threshold=50
+          result=$(awk -v cov="$coverage" -v thresh="$threshold" 'BEGIN { if (cov < thresh) print "below"; else print "above" }')
+
+          if [ "$result" = "below" ]; then
+            echo "Warning: Test coverage is below ${threshold}%"
+          else
+            echo "Test coverage meets or exceeds ${threshold}% threshold"
           fi

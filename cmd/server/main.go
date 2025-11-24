@@ -5,6 +5,7 @@ import (
 	"mini-search-platform/internal/database"
 	"mini-search-platform/internal/handlers"
 	"mini-search-platform/internal/middleware"
+	"mini-search-platform/pkg/security"
 	"mini-search-platform/pkg/sqlite"
 	"os"
 	"strconv"
@@ -30,6 +31,10 @@ func main() {
 	articles := adapters.NewSQLliteArticleRepository(db)
 	authors := adapters.NewSQLliteAuthorsRepository(db)
 	tags := adapters.NewSQLliteTagsRepository(db)
+	users := adapters.NewSQLiteUserRepository(db)
+	tenants := adapters.NewSQLiteTenantRepository(db)
+	memberships := adapters.NewSQLiteMembershipRepository(db)
+	jwtSvc := security.NewJWTService("secret-key", "local", time.Hour*24)
 
 	engine := adapters.Init()
 
@@ -44,7 +49,22 @@ func main() {
 	rateLimiter := middleware.NewRateLimiter(searchRateLimit)
 	rateLimiter.Cleanup(5 * time.Minute)
 
+	authMiddleware := middleware.NewAuthMiddleware(jwtSvc, users)
+
 	r := gin.Default()
+
+	handlers.SetupSwagger(r)
+
+	ttlaccess := int64(time.Minute * 5)
+
+	// resource: auth (public endpoints)
+	r.POST("/auth/register", handlers.Register(users, tenants, memberships, jwtSvc, ttlaccess))
+	r.POST("/auth/login", handlers.Login(users, jwtSvc, ttlaccess))
+	r.POST("/auth/refresh", handlers.RefreshToken(jwtSvc, ttlaccess))
+
+	// resource: logged user (protected)
+	r.GET("/api/me", authMiddleware.RequireAuth(), handlers.GetCurrentUser(users))
+
 	// resource: articles
 	r.POST("/articles", handlers.AddArticle(articles, authors, tags, sync))
 	r.POST("/articles/batch", handlers.AddArticles(articles, authors, tags, sync))
@@ -64,5 +84,5 @@ func main() {
 	// resource: search (with rate limiting)
 	r.GET("/search", rateLimiter.Middleware(), handlers.SearchArticles(engine))
 
-	r.Run(":8080")
+	r.Run(":8081")
 }

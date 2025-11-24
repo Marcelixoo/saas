@@ -46,7 +46,7 @@ func Load() (*Config, error) {
 
 	return &Config{
 		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
+			Port: getEnv("SERVER_PORT", "8081"),
 		},
 		Database: DatabaseConfig{
 			Path: getEnv("DATABASE_PATH", "file:articles.db?cache=shared&mode=memory"),

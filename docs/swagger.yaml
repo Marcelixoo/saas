@@ -1,0 +1,834 @@
+openapi: 3.0.3
+info:
+  title: Fashion Catalog API
+  description: |
+    Multi-tenant SaaS platform for managing fashion articles with JWT-based authentication and role-based access control.
+
+    ## Authentication
+    Most endpoints require a JWT token. Include it in the `Authorization` header as:
+    ```
+    Authorization: Bearer <your-token>
+    ```
+
+    ## Roles
+    - **admin**: Full access to tenant, can manage members and billing
+    - **billing**: Can manage billing and upgrade project tiers
+    - **member**: Can create and manage articles and projects
+
+    ## Rate Limiting
+    Search endpoint is rate-limited to 60 requests/minute per IP address (configurable).
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@fashion-catalog.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8081
+    description: Development server
+  - url: https://api.fashion-catalog.example.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User registration, login, and token management
+  - name: Articles
+    description: Fashion article management
+  - name: Authors
+    description: Author management
+  - name: Tags
+    description: Tag management
+  - name: Search
+    description: Search articles (rate-limited)
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/register or /auth/login
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Invalid credentials
+      required:
+        - error
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-24T10:30:00Z"
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: "Bearer"
+        expires_in:
+          type: integer
+          format: int64
+          example: 86400
+          description: Token expiry in seconds
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+        - user
+
+    Article:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "Summer Collection 2025"
+        body:
+          type: string
+          example: "Discover our latest summer fashion trends..."
+        author:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          example:
+            id: 1
+            name: "Jane Smith"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["summer", "casual", "trending"]
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-24T10:30:00Z"
+
+    Author:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Jane Smith"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-24T10:30:00Z"
+
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        label:
+          type: string
+          example: "summer"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-24T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-01-24T12:00:00Z"
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: |
+        Creates a new user account with an associated tenant. The user becomes
+        an admin of the newly created tenant.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "newuser@example.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "SecurePass123!"
+                tenant_name:
+                  type: string
+                  example: "My Fashion Store"
+              required:
+                - email
+                - password
+                - tenant_name
+            examples:
+              basic:
+                summary: Basic registration
+                value:
+                  email: "designer@fashion.com"
+                  password: "MySecurePassword123!"
+                  tenant_name: "Fashion Studio Inc"
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                success:
+                  value:
+                    access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzZTQ1NjctZTg5Yi0xMmQzLWE0NTYtNDI2NjE0MTc0MDAwIiwiZW1haWwiOiJkZXNpZ25lckBmYXNoaW9uLmNvbSIsImlzcyI6ImZhc2hpb24tY2F0YWxvZyIsInN1YiI6IjEyM2U0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMCIsImlhdCI6MTczNzk3MzQwMCwiZXhwIjoxNzM4MDU5ODAwfQ.example"
+                    refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+                    token_type: "Bearer"
+                    expires_in: 86400
+                    user:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      email: "designer@fashion.com"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                validation:
+                  value:
+                    error: "password must be at least 8 characters"
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "email already registered"
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      description: Authenticates user and returns JWT tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "SecurePass123!"
+              required:
+                - email
+                - password
+            examples:
+              basic:
+                summary: Standard login
+                value:
+                  email: "designer@fashion.com"
+                  password: "MySecurePassword123!"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "invalid credentials"
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Generate new access token using refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              required:
+                - refresh_token
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      description: Returns authenticated user information
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /articles:
+    post:
+      tags:
+        - Articles
+      summary: Create article
+      description: Create a new fashion article
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  example: "Winter Fashion Trends 2025"
+                body:
+                  type: string
+                  example: "Explore the hottest winter fashion trends..."
+                author_id:
+                  type: integer
+                  example: 1
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  example: ["winter", "trends", "2025"]
+              required:
+                - title
+                - body
+                - author_id
+            examples:
+              full:
+                summary: Article with tags
+                value:
+                  title: "Sustainable Fashion Guide"
+                  body: "A comprehensive guide to sustainable fashion practices, including eco-friendly materials and ethical brands."
+                  author_id: 2
+                  tags: ["sustainable", "eco-friendly", "guide"]
+              minimal:
+                summary: Minimal article
+                value:
+                  title: "Spring Collection Preview"
+                  body: "Sneak peek at our upcoming spring collection."
+                  author_id: 1
+      responses:
+        '201':
+          description: Article created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 42
+                  title:
+                    type: string
+                  body:
+                    type: string
+                  author_id:
+                    type: integer
+                  tags:
+                    type: array
+                    items:
+                      type: string
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /articles/batch:
+    post:
+      tags:
+        - Articles
+      summary: Create multiple articles
+      description: Bulk create articles
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                articles:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                      body:
+                        type: string
+                      author_id:
+                        type: integer
+                      tags:
+                        type: array
+                        items:
+                          type: string
+              required:
+                - articles
+            examples:
+              batch:
+                summary: Multiple articles
+                value:
+                  articles:
+                    - title: "Article 1"
+                      body: "Content 1"
+                      author_id: 1
+                      tags: ["tag1"]
+                    - title: "Article 2"
+                      body: "Content 2"
+                      author_id: 2
+                      tags: ["tag2", "tag3"]
+      responses:
+        '201':
+          description: Batch operation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_inserted:
+                    type: integer
+                    example: 2
+                  total_failed:
+                    type: integer
+                    example: 0
+
+  /authors:
+    post:
+      tags:
+        - Authors
+      summary: Create author
+      description: Create a new author
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Emily Chen"
+              required:
+                - name
+      responses:
+        '201':
+          description: Author created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Author'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /authors/batch:
+    post:
+      tags:
+        - Authors
+      summary: Create multiple authors
+      description: Bulk create authors
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                authors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+              required:
+                - authors
+      responses:
+        '201':
+          description: Batch operation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_inserted:
+                    type: integer
+                  total_failed:
+                    type: integer
+
+  /tags:
+    get:
+      tags:
+        - Tags
+      summary: List all tags
+      description: Retrieve all tags
+      security: []
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+              examples:
+                tags:
+                  value:
+                    - id: 1
+                      label: "summer"
+                      created_at: "2025-01-24T10:00:00Z"
+                      updated_at: "2025-01-24T10:00:00Z"
+                    - id: 2
+                      label: "winter"
+                      created_at: "2025-01-24T10:00:00Z"
+                      updated_at: "2025-01-24T10:00:00Z"
+
+    post:
+      tags:
+        - Tags
+      summary: Create tag
+      description: Create a new tag
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  example: "sustainable"
+              required:
+                - label
+      responses:
+        '201':
+          description: Tag created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+
+  /tags/{label}:
+    get:
+      tags:
+        - Tags
+      summary: Get tag by label
+      description: Retrieve a specific tag
+      security: []
+      parameters:
+        - name: label
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "summer"
+      responses:
+        '200':
+          description: Tag details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+        '404':
+          description: Tag not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - Tags
+      summary: Update tag
+      description: Update tag label
+      security: []
+      parameters:
+        - name: label
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "summer"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  example: "summer-2025"
+              required:
+                - label
+      responses:
+        '200':
+          description: Tag updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Tag updated successfully"
+
+  /tags/{label}/articles:
+    get:
+      tags:
+        - Tags
+      summary: Get articles by tag
+      description: Retrieve all articles with a specific tag
+      security: []
+      parameters:
+        - name: label
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "summer"
+      responses:
+        '200':
+          description: List of articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Article'
+
+  /tags/batch:
+    post:
+      tags:
+        - Tags
+      summary: Create multiple tags
+      description: Bulk create tags
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      label:
+                        type: string
+              required:
+                - tags
+      responses:
+        '201':
+          description: Batch operation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_inserted:
+                    type: integer
+                  total_failed:
+                    type: integer
+
+  /search:
+    get:
+      tags:
+        - Search
+      summary: Search articles
+      description: |
+        Full-text search across articles.
+
+        **Rate Limited**: 60 requests/minute per IP address (configurable)
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+          example: "summer fashion"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          description: Number of results to return
+          example: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of results to skip (pagination)
+          example: 0
+        - name: filter
+          in: query
+          schema:
+            type: string
+          description: Filter by field (e.g., "author:Jane Smith")
+          example: "author:Jane Smith"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: "title:asc"
+          description: Sort order (field:asc or field:desc)
+          example: "created_at:desc"
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hits:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  estimatedTotalHits:
+                    type: integer
+                    example: 42
+                  limit:
+                    type: integer
+                    example: 10
+                  offset:
+                    type: integer
+                    example: 0
+              examples:
+                results:
+                  value:
+                    hits:
+                      - id: 1
+                        title: "Summer Fashion Trends 2025"
+                        body: "Discover the latest summer styles..."
+                        author:
+                          id: 1
+                          name: "Jane Smith"
+                        tags: ["summer", "trends"]
+                        created_at: "2025-01-24T10:00:00Z"
+                    estimatedTotalHits: 15
+                    limit: 10
+                    offset: 0
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Rate limit exceeded. Please try again later."

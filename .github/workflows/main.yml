@@ -19,4 +19,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_MODEL: "gpt-4.1-nano"
-          exclude: "**/*.json, **/*.md"
+          exclude: |
+            **/*.md,
+            **/*.json,
+            docs/**,
+            **/*.yaml,
+            go.sum,
+            go.mod

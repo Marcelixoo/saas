@@ -1,0 +1,65 @@
+---
+config:
+  layout: elk
+  theme: base
+---
+flowchart LR
+    subgraph Edge["Edge & DNS"]
+        n1["Vercel DNS"]
+        n2["Cloud Armor"]
+    end
+
+    subgraph Compute["Compute & Runtime"]
+        n3["Cloud Load Balancer"]
+        n4["Cloud Run"]
+        n5["VPC Connector"]
+    end
+
+    subgraph Data["Data & Storage"]
+        n6["Cloud SQL PostgreSQL"]
+        n7["Secret Manager"]
+        n8["Cloud Storage"]
+    end
+
+    subgraph Observability["Monitoring & Logs"]
+        n9["Cloud Logging"]
+        n10["Cloud Monitoring"]
+        n11["Cloud Trace"]
+    end
+
+    subgraph External["External Services"]
+        n12["GitHub Container Registry"]
+        n13["Meilisearch"]
+    end
+
+    Edge --> Compute
+    Compute --> Data
+    Compute --> Observability
+    External --> Compute
+
+    n1 --> n2
+    n2 --> n3
+    n3 --> n4
+    n4 --> n5
+    n5 --> n6
+    n4 --> n7
+    n4 --> n9
+    n4 --> n10
+    n4 --> n11
+    n6 --> n8
+    n12 --> n4
+    n4 --> n13
+
+    n1@{ shape: cloud, label: "Vercel DNS<br/>api.yourdomain.com" }
+    n2@{ shape: lean-r, label: "Cloud Armor<br/>DDoS Protection" }
+    n3@{ shape: lin-cyl, label: "Load Balancer" }
+    n4@{ shape: rect, label: "Cloud Run<br/>Min: 1, Max: 3<br/>512Mi, 1 vCPU" }
+    n5@{ shape: trap-b, label: "VPC Connector<br/>10.8.0.0/28" }
+    n6@{ shape: cyl, label: "Cloud SQL<br/>PostgreSQL 15<br/>Private IP" }
+    n7@{ shape: docs, label: "Secret Manager<br/>JWT & DB Creds" }
+    n8@{ shape: lin-cyl, label: "Cloud Storage<br/>Terraform State" }
+    n9@{ shape: doc, label: "Cloud Logging" }
+    n10@{ shape: notch-rect, label: "Cloud Monitoring" }
+    n11@{ shape: hex, label: "Cloud Trace" }
+    n12@{ shape: lin-cyl, label: "GitHub Container<br/>Registry" }
+    n13@{ shape: stadium, label: "Meilisearch" }

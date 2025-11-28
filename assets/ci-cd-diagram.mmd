@@ -1,0 +1,78 @@
+---
+config:
+  layout: fixed
+  theme: base
+---
+flowchart LR
+ subgraph Left["Development & Build"]
+    direction TB
+        p1(("Developer"))
+        p2(["Local Testing<br>docker-compose"])
+        p3["GitHub<br>Main Branch"]
+        p4["Code Review"]
+        p5["Checkout Code"]
+        p6["Unit Tests<br>go test ./..."]
+        p7["Coverage 80%+"]
+  end
+ subgraph Down["Container & Deploy"]
+    direction TB
+        p8["Docker Build<br>Multi-stage"]
+        p9["Security Scan"]
+        p10["Push GHCR"]
+        p11["Auth GCP"]
+        p12["Load Secrets"]
+  end
+ subgraph Right["Verify & Production"]
+    direction TB
+        p13["Deploy Cloud Run"]
+        p14["Health Check"]
+        p15["Integration Tests"]
+        p16["Smoke Tests"]
+        p17(["Live Service<br>api.yourdomain.com"])
+        p18["Monitoring & Alerts"]
+  end
+ subgraph Rollback["Rollback"]
+    direction TB
+        p19["Failure Detection"]
+        p20["Auto Rollback"]
+  end
+    p1 --> p2
+    p2 --> p3
+    p3 --> p4
+    p4 --> p5
+    p5 --> p6
+    p6 --> p7
+    p8 --> p9
+    p9 --> p10
+    p10 --> p11
+    p11 --> p12
+    p13 --> p14
+    p14 --> p15
+    p15 --> p16
+    p16 --> p17
+    p17 --> p18
+    p19 --> p20
+    p7 --> p8
+    p12 --> p13
+    p14 -. Fail .-> p19
+    p15 -. Fail .-> p19
+    p16 -. Fail .-> p19
+    p20 -.-> p18
+
+    p3@{ shape: rect}
+    p4@{ shape: hex}
+    p5@{ shape: rect}
+    p6@{ shape: rect}
+    p7@{ shape: rect}
+    p8@{ shape: rect}
+    p9@{ shape: hex}
+    p10@{ shape: cyl}
+    p11@{ shape: trap-b}
+    p12@{ shape: docs}
+    p13@{ shape: rect}
+    p14@{ shape: diam}
+    p15@{ shape: diam}
+    p16@{ shape: diam}
+    p18@{ shape: notch-rect}
+    p19@{ shape: hex}
+    p20@{ shape: lean-l}

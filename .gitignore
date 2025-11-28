@@ -23,3 +23,24 @@
 
 # Go workspace file
 go.work
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+
+# GCP
+github-actions-key.json
+*-key.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite

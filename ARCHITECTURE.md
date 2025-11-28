@@ -8,4 +8,5 @@ Basic setup with a running container deployed to Cloud Run + Cloud SQL PostgreSQ
 
 ## CI/CD Pipelines Diagram
 Pipelines are powered by GitHub Actions with specs found at `.github/workflows/*.yml` files.
+
 ![CI/CD Pipelines Diagram](assets/ci-cd-diagram.png)

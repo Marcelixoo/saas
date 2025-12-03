@@ -112,3 +112,28 @@ jobs:
           sleep 10
           curl -f ${{ steps.url.outputs.url }}/api || exit 1
           echo "Health check passed!"
+
+  deploy-meilisearch:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment:
+      name: meilisearch-deployment
+      url: https://console.cloud.google.com/run?project=${{ env.PROJECT_ID }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Meilisearch to Cloud Run
+        run: |
+          chmod +x deployments/cloud-run/deploy-meilisearch.sh
+          MEILI_MASTER_KEY="${{ secrets.MEILI_MASTER_KEY }}" \
+            ./deployments/cloud-run/deploy-meilisearch.sh ${{ env.PROJECT_ID }} ${{ env.REGION }}

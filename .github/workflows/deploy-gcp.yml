@@ -93,7 +93,7 @@ jobs:
             --timeout 300 \
             --concurrency 80 \
             --set-env-vars "GIN_MODE=release" \
-            --set-secrets "JWT_SECRET_KEY=jwt-secret-key:latest,DATABASE_URL=database-url:latest" \
+            --update-secrets "JWT_SECRET_KEY=jwt-secret-key:latest,DATABASE_URL=database-url:latest,MEILISEARCH_HOST=meilisearch-host:latest,MEILISEARCH_API_KEY=meilisearch-master-key:latest" \
             --vpc-connector saas-api-connector \
             --project ${{ env.PROJECT_ID }}
 

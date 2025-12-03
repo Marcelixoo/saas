@@ -94,7 +94,7 @@ jobs:
             --concurrency 80 \
             --set-env-vars "GIN_MODE=release" \
             --set-secrets "JWT_SECRET_KEY=jwt-secret-key:latest,DATABASE_URL=database-url:latest" \
-            --vpc-connector saas-connector \
+            --vpc-connector saas-api-connector \
             --project ${{ env.PROJECT_ID }}
 
       - name: Get Service URL

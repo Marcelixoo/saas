@@ -84,15 +84,104 @@ The initial version of the system provides search capability to a publishing pla
 
 ## Local setup
 
-### 1. Starting Meilisearch container
+### Option 1: Docker Compose (Recommended)
 
-docker run -it --rm -p 7700:7700 getmeili/meilisearch
+The easiest way to run the application locally is using Docker Compose, which sets up both the API and Meilisearch automatically.
 
-### 2. Starting the application
+#### Prerequisites
+- Docker and Docker Compose installed
+- Git
 
-go run cmd/server/main.go
+#### Steps
 
-**Note:** the local setup relies on a SQLite database with in-memory driver.
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd fashion-catalog-system
+   ```
+
+2. **Create environment file**
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Configure environment variables**
+
+   Edit `.env` and set your configuration. At minimum, change the JWT secret:
+   ```bash
+   JWT_SECRET_KEY=your-secure-random-secret-key-here
+   ```
+
+   Generate a secure secret with:
+   ```bash
+   openssl rand -base64 32
+   ```
+
+4. **Start all services**
+   ```bash
+   docker-compose up --build
+   ```
+
+   The API will be available at `http://localhost:8081`
+
+   Meilisearch will be available at `http://localhost:7700`
+
+5. **Stop services**
+   ```bash
+   docker-compose down
+   ```
+
+   To also remove volumes (database and search index data):
+   ```bash
+   docker-compose down -v
+   ```
+
+   **Note:** The Docker setup uses a persistent SQLite database stored in a Docker volume. Your data will persist between container restarts.
+
+### Option 2: Local Development (Go)
+
+If you prefer to run the application directly with Go for development.
+
+#### Prerequisites
+- Go 1.21 or higher
+- Docker (for Meilisearch only)
+
+#### Steps
+
+1. **Start Meilisearch container**
+   ```bash
+   docker run -it --rm -p 7700:7700 getmeili/meilisearch
+   ```
+
+2. **Set environment variables**
+   ```bash
+   export JWT_SECRET_KEY="your-secret-key-change-in-production"
+   export SERVER_PORT=8081
+   export MEILISEARCH_HOST="http://localhost:7700"
+   export DATABASE_PATH="file:articles.db?cache=shared&mode=memory"
+   ```
+
+3. **Run the application**
+   ```bash
+   go run cmd/server/main.go
+   ```
+
+**Note:** The local setup uses a SQLite database with in-memory driver by default.
+
+### Environment Variables
+
+All configuration is managed through environment variables. See [.env.example](.env.example) for a complete list of available options:
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `SERVER_PORT` | API server port | `8081` | No |
+| `DATABASE_PATH` | SQLite database path | `/app/data/articles.db` (Docker)<br>`file:articles.db?cache=shared&mode=memory` (local) | No |
+| `MEILISEARCH_HOST` | Meilisearch server URL | `http://meilisearch:7700` (Docker)<br>`http://localhost:7700` (local) | No |
+| `JWT_SECRET_KEY` | Secret key for JWT signing | - | **Yes** |
+| `JWT_ISSUER` | JWT token issuer | `fashion-catalog` | No |
+| `JWT_ACCESS_TTL` | Access token TTL | `24h` | No |
+| `JWT_REFRESH_TTL` | Refresh token TTL | `168h` | No |
+| `SEARCH_RATE_LIMIT` | Search requests per minute per IP | `60` | No |
 
 ## Sample requests
 

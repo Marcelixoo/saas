@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig
-	Database  DatabaseConfig
-	JWT       JWTConfig
-	RateLimit RateLimitConfig
+	Server      ServerConfig
+	Database    DatabaseConfig
+	Meilisearch MeilisearchConfig
+	JWT         JWTConfig
+	RateLimit   RateLimitConfig
 }
 
 type ServerConfig struct {
@@ -20,6 +21,10 @@ type ServerConfig struct {
 
 type DatabaseConfig struct {
 	Path string
+}
+
+type MeilisearchConfig struct {
+	Host string
 }
 
 type JWTConfig struct {
@@ -50,6 +55,9 @@ func Load() (*Config, error) {
 		},
 		Database: DatabaseConfig{
 			Path: getEnv("DATABASE_PATH", "file:articles.db?cache=shared&mode=memory"),
+		},
+		Meilisearch: MeilisearchConfig{
+			Host: getEnv("MEILISEARCH_HOST", "http://localhost:7700"),
 		},
 		JWT: JWTConfig{
 			SecretKey:  jwtSecret,

@@ -35,8 +35,15 @@ gcloud services enable \
 echo ""
 echo "3️⃣  Creating Terraform state bucket..."
 BUCKET_NAME="${PROJECT_ID}-terraform-state"
-gsutil mb -p $PROJECT_ID -l $REGION gs://$BUCKET_NAME/ || echo "Bucket already exists"
-gsutil versioning set on gs://$BUCKET_NAME/
+
+if gsutil ls -p $PROJECT_ID gs://$BUCKET_NAME/ &>/dev/null; then
+  echo "Bucket gs://$BUCKET_NAME/ already exists"
+else
+  echo "Creating bucket gs://$BUCKET_NAME/..."
+  gsutil mb -p $PROJECT_ID -l $REGION gs://$BUCKET_NAME/
+  echo "Enabling versioning on bucket..."
+  gsutil versioning set on gs://$BUCKET_NAME/
+fi
 
 echo ""
 echo "4️⃣  Creating service account for GitHub Actions..."
@@ -68,8 +75,40 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 echo ""
 echo "6️⃣  Creating service account key..."
 KEY_FILE="github-actions-key.json"
-gcloud iam service-accounts keys create $KEY_FILE \
-  --iam-account=$SA_EMAIL
+
+if [ -f "$KEY_FILE" ]; then
+  echo "⚠️  Warning: $KEY_FILE already exists!"
+  read -p "Do you want to create a new key? This will not delete the old one. (y/N): " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Skipping key creation. Using existing key file."
+    SKIP_KEY_CREATION=true
+  fi
+fi
+
+if [ "$SKIP_KEY_CREATION" != "true" ]; then
+  # List existing keys
+  EXISTING_KEYS=$(gcloud iam service-accounts keys list --iam-account=$SA_EMAIL --filter="keyType=USER_MANAGED" --format="value(name)" | wc -l)
+  echo "Service account currently has $EXISTING_KEYS user-managed key(s)"
+
+  if [ "$EXISTING_KEYS" -ge 2 ]; then
+    echo "⚠️  Warning: Service account already has 2 or more keys!"
+    echo "Consider deleting old keys before creating new ones to stay within limits."
+    read -p "Continue anyway? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "Skipping key creation."
+      SKIP_KEY_CREATION=true
+    fi
+  fi
+
+  if [ "$SKIP_KEY_CREATION" != "true" ]; then
+    echo "Creating new service account key..."
+    gcloud iam service-accounts keys create $KEY_FILE \
+      --iam-account=$SA_EMAIL
+    echo "✅ Key created successfully: $KEY_FILE"
+  fi
+fi
 
 echo ""
 echo "✅ GCP project setup complete!"

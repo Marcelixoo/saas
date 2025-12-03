@@ -6,8 +6,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func Init() (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", "file:articles.db?cache=shared&mode=memory")
+func Init(dbPath string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, err
 	}

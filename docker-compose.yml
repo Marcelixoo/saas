@@ -1,21 +1,48 @@
 version: '3.8'
 
 services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  meilisearch:
+    image: getmeili/meilisearch:v1.5
+    container_name: fashion-catalog-meilisearch
     ports:
-      - "8080:8080"
+      - "7700:7700"
     environment:
-      - JWT_SECRET_KEY=dev-secret-key-change-in-production
-      - GIN_MODE=debug
-      - SERVER_PORT=8080
-      - SEARCH_RATE_LIMIT=60
+      - MEILI_ENV=development
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - meilisearch_data:/meili_data
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7700/health"]
       interval: 10s
       timeout: 3s
       retries: 3
       start_period: 5s
     restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fashion-catalog-api
+    ports:
+      - "${SERVER_PORT:-8081}:${SERVER_PORT:-8081}"
+    env_file:
+      - .env
+    environment:
+      - GIN_MODE=${GIN_MODE:-debug}
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${SERVER_PORT:-8081}/api/me"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  meilisearch_data:
+  sqlite_data:

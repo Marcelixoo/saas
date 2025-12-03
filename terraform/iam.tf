@@ -4,26 +4,21 @@ resource "google_service_account" "cloud_run" {
   description  = "Used by Cloud Run service to access GCP resources"
 }
 
-resource "google_project_iam_member" "cloud_sql_client" {
-  project = var.project_id
-  role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+
+locals {
+  cloud_run_roles = toset([
+    "roles/cloudsql.client",
+    "roles/secretmanager.secretAccessor",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter"
+  ])
 }
 
-resource "google_project_iam_member" "secret_accessor" {
-  project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${google_service_account.cloud_run.email}"
-}
 
-resource "google_project_iam_member" "log_writer" {
-  project = var.project_id
-  role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.cloud_run.email}"
-}
+resource "google_project_iam_member" "cloud_run_roles" {
+  for_each = local.cloud_run_roles
 
-resource "google_project_iam_member" "metric_writer" {
   project = var.project_id
-  role    = "roles/monitoring.metricWriter"
+  role    = each.value
   member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }

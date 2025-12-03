@@ -1,6 +1,6 @@
 resource "google_sql_database_instance" "main" {
   name             = "${local.service_name}-db-${var.environment}"
-  database_version = "POSTGRES_15"
+  database_version = "POSTGRES_18"
   region           = var.region
 
   settings {

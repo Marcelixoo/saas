@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /build
 
@@ -22,16 +22,16 @@ COPY --from=builder /build/docs ./docs
 
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser && \
+    mkdir -p /app/data && \
     chown -R appuser:appuser /app
 
 USER appuser
 
-EXPOSE 8080
+EXPOSE 8081
 
-ENV GIN_MODE=release \
-    SERVER_PORT=8080
+ENV GIN_MODE=release
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT:-8081}/api/me || exit 1
 
 CMD ["./server"]

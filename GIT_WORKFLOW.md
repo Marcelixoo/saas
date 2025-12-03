@@ -1,0 +1,5 @@
+# Git Workflow
+
+This repository follows a **trunk-based development** approach with short-lived feature branches. All development occurs on feature branches that are merged into `main` via pull requests after passing CI checks (build, tests, code review). Each feature branch addresses a single concern (e.g., `rate-limit-search-requests`, `ci-build-and-test`, `role-based-auth`) and is deleted after merging to maintain a clean history. The `main` branch always represents a deployable state with all tests passing.
+
+Feature branches are created from `main`, developed iteratively with descriptive commits (following conventional commit format where applicable), and merged back using squash or merge commits to preserve context. GitHub Actions runs automated checks on each pull request, including build verification, test execution with coverage reporting, and AI-powered code review. This workflow ensures code quality, facilitates collaboration, and maintains a clear audit trail suitable for academic assessment while following industry-standard practices for modern software development.

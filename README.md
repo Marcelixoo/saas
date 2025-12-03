@@ -332,6 +332,19 @@ The platform allows for dynamic creation of new search indexes matching one of t
 
 More details at [meilisearch.go](internal/adapters/meilisearch.go)
 
+## Security
+
+### Vulnerability Scanning
+
+This project uses `govulncheck` to scan for known vulnerabilities in Go dependencies and the standard library. The scan runs automatically in CI/CD on every push and pull request.
+
+To run vulnerability scanning locally:
+
+```bash
+go install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck ./...
+```
+
 ## Further information
 
 - [Architectural Overview](ARCHITECTURE.md)

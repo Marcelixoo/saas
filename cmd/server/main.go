@@ -42,13 +42,11 @@ func main() {
 
 	jwtSvc := security.NewJWTService(cfg.JWT.SecretKey, cfg.JWT.Issuer, cfg.JWT.AccessTTL)
 
-	engine := adapters.Init(cfg.Meilisearch.Host)
+	meilisearchAPIKey := os.Getenv("MEILISEARCH_API_KEY") // Optional
 	meilisearchHost := os.Getenv("MEILISEARCH_HOST")
 	if meilisearchHost == "" {
 		meilisearchHost = "http://localhost:7700"
 	}
-	meilisearchAPIKey := os.Getenv("MEILISEARCH_API_KEY") // Optional
-
 	engine := adapters.Init(meilisearchHost, meilisearchAPIKey)
 
 	sync := search.NewIndexSyncManager(engine, articles, tags)

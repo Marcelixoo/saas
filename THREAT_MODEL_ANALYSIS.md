@@ -164,14 +164,14 @@ Malicious or vulnerable Go modules.
 
 | Area                     | Status | Notes |
 | ------------------------ | ------ | ----- |
-| Authentication           | `TODO`   | JWT middleware in Go |
-| Authorization (RBAC)    | `TODO`   | Role + plan checks |
+| Authentication           | `DONE`   | JWT middleware in Go |
+| Authorization (RBAC)    | `DONE`   | Role + plan checks |
 | Multi-tenant isolation   | `TODO`   | Ensure all DB queries are tenant-scoped |
-| Input validation         | `TODO`   | Expand JSON/struct validation |
-| Secrets management       | `TODO` | Move private keys + DB creds to Secret Manager |
-| Rate limiting            | `TODO`   | Redis token buckets per plan |
+| Input validation         | `DONE`   | Expand JSON/struct validation |
+| Secrets management       | `DONE` | Move private keys + DB creds to Secret Manager |
+| Rate limiting            | `DONE`   | Redis token buckets per plan |
 | Logging & monitoring     | `TODO`   | Add dashboards + alerts |
 | Transport security       | `TODO`   | HTTPS enforced by Cloud Run |
 | Storage security         | `TODO`   | Signed URLs + private buckets |
-| Dependency security      | `TODO`   | Add `govulncheck` to CI |
+| Dependency security      | `DONE`   | Add `govulncheck` to CI |
 | CI/CD security           | `TODO`   | Least-privilege OIDC setup |

@@ -72,6 +72,25 @@ else
 fi
 
 echo ""
+echo "5️⃣  Granting secret access to Cloud Run service accounts..."
+
+# Get project number for default compute service account
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+echo "Granting access to default compute service account: $COMPUTE_SA"
+
+for SECRET in meilisearch-master-key meilisearch-host; do
+  echo "  - Granting access to $SECRET..."
+  gcloud secrets add-iam-policy-binding "$SECRET" \
+    --project="$PROJECT_ID" \
+    --member="serviceAccount:${COMPUTE_SA}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --condition=None \
+    2>/dev/null || echo "    (binding may already exist)"
+done
+
+echo ""
 echo "✅ Meilisearch deployed successfully!"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

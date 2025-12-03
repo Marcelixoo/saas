@@ -17,11 +17,18 @@ type MeilisearchEngine struct {
 	Index meilisearch.IndexManager
 }
 
-func Init(host string) *MeilisearchEngine {
+func Init(host string, apiKey string) *MeilisearchEngine {
 	if host == "" {
 		host = "http://localhost:7700"
 	}
-	Client = meilisearch.New(host)
+
+	if apiKey != "" {
+		// Production mode with authentication
+		Client = meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
+	} else {
+		// Development mode without authentication
+		Client = meilisearch.New(host)
+	}
 	_, err := Client.CreateIndex(&meilisearch.IndexConfig{
 		Uid:        search.ARTICLES_INDEX_NAME,
 		PrimaryKey: "id",

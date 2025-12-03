@@ -343,6 +343,24 @@ To run vulnerability scanning locally:
 ```bash
 go install golang.org/x/vuln/cmd/govulncheck@latest
 govulncheck ./...
+## Deployment
+
+### Meilisearch Deployment
+
+For production deployments on GCP, Meilisearch needs to be deployed as a separate service. See the comprehensive guide:
+
+📖 **[Meilisearch Deployment Options](docs/MEILISEARCH_DEPLOYMENT.md)**
+
+Available options:
+- **Meilisearch Cloud** (Recommended) - Fully managed, zero infrastructure
+- **Cloud Run** - GCP-native, auto-scaling
+- **GCE VM** - Full control, persistent storage
+- **GKE** - Kubernetes-based deployment
+- And more alternatives
+
+**Quick Start for Cloud Run:**
+```bash
+./deployments/cloud-run/deploy-meilisearch.sh
 ```
 
 ## Further information

@@ -1,52 +1,57 @@
 package main
 
 import (
+	"log"
+	"mini-search-platform/config"
 	"mini-search-platform/internal/adapters"
 	"mini-search-platform/internal/database"
 	"mini-search-platform/internal/handlers"
 	"mini-search-platform/internal/middleware"
+	"mini-search-platform/internal/search"
 	"mini-search-platform/pkg/security"
 	"mini-search-platform/pkg/sqlite"
-	"os"
-	"strconv"
 	"time"
-
-	"mini-search-platform/internal/search"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	db, err := sqlite.Init()
+	// Load configuration from environment
+	cfg, err := config.Load()
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Initialize database
+	db, err := sqlite.Init(cfg.Database.Path)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer sqlite.Close(db)
 
 	err = database.Create(db)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to create database schema: %v", err)
 	}
 
+	// Initialize repositories
 	articles := adapters.NewSQLliteArticleRepository(db)
 	authors := adapters.NewSQLliteAuthorsRepository(db)
 	tags := adapters.NewSQLliteTagsRepository(db)
 	users := adapters.NewSQLiteUserRepository(db)
 	tenants := adapters.NewSQLiteTenantRepository(db)
 	memberships := adapters.NewSQLiteMembershipRepository(db)
-	jwtSvc := security.NewJWTService("secret-key", "local", time.Hour*24)
 
-	engine := adapters.Init()
+	// Initialize JWT service with config
+	jwtSvc := security.NewJWTService(cfg.JWT.SecretKey, cfg.JWT.Issuer, cfg.JWT.AccessTTL)
+
+	// Initialize search engine
+	engine := adapters.Init(cfg.Meilisearch.Host)
 
 	sync := search.NewIndexSyncManager(engine, articles, tags)
 
-	searchRateLimit := 60
-	if limit := os.Getenv("SEARCH_RATE_LIMIT"); limit != "" {
-		if val, err := strconv.Atoi(limit); err == nil && val > 0 {
-			searchRateLimit = val
-		}
-	}
-	rateLimiter := middleware.NewRateLimiter(searchRateLimit)
+	// Initialize rate limiter with config
+	rateLimiter := middleware.NewRateLimiter(cfg.RateLimit.SearchLimit)
 	rateLimiter.Cleanup(5 * time.Minute)
 
 	authMiddleware := middleware.NewAuthMiddleware(jwtSvc, users)
@@ -55,7 +60,7 @@ func main() {
 
 	handlers.SetupSwagger(r)
 
-	ttlaccess := int64(time.Minute * 5)
+	ttlaccess := int64(cfg.JWT.AccessTTL.Seconds())
 
 	// resource: auth (public endpoints)
 	r.POST("/auth/register", handlers.Register(users, tenants, memberships, jwtSvc, ttlaccess))
@@ -84,5 +89,6 @@ func main() {
 	// resource: search (with rate limiting)
 	r.GET("/search", rateLimiter.Middleware(), handlers.SearchArticles(engine))
 
-	r.Run(":8081")
+	log.Printf("Starting server on port %s", cfg.Server.Port)
+	r.Run(":" + cfg.Server.Port)
 }

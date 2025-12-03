@@ -9,8 +9,6 @@ import (
 )
 
 var (
-	DefaultHost = "http://localhost:7700"
-
 	Client meilisearch.ServiceManager
 	Index  meilisearch.IndexManager
 )
@@ -19,8 +17,11 @@ type MeilisearchEngine struct {
 	Index meilisearch.IndexManager
 }
 
-func Init() *MeilisearchEngine {
-	Client = meilisearch.New(DefaultHost)
+func Init(host string) *MeilisearchEngine {
+	if host == "" {
+		host = "http://localhost:7700"
+	}
+	Client = meilisearch.New(host)
 	_, err := Client.CreateIndex(&meilisearch.IndexConfig{
 		Uid:        search.ARTICLES_INDEX_NAME,
 		PrimaryKey: "id",

@@ -3,11 +3,11 @@
 set -e
 
 PROJECT_ID=$1
-REGION=${2:-us-central1}
+REGION=${2:-europe-west3}
 
 if [ -z "$PROJECT_ID" ]; then
   echo "Usage: $0 <project-id> [region]"
-  echo "Example: $0 my-project-123 us-central1"
+  echo "Example: $0 my-project-123 europe-west3"
   exit 1
 fi
 
@@ -29,7 +29,8 @@ gcloud services enable \
   servicenetworking.googleapis.com \
   secretmanager.googleapis.com \
   cloudresourcemanager.googleapis.com \
-  iam.googleapis.com
+  iam.googleapis.com |
+  artifactregistry.googleapis.com
 
 echo ""
 echo "3️⃣  Creating Terraform state bucket..."
@@ -59,6 +60,10 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:${SA_EMAIL}" \
   --role="roles/secretmanager.secretAccessor"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/artifactregistry.admin"
 
 echo ""
 echo "6️⃣  Creating service account key..."

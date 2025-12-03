@@ -1,35 +1,67 @@
 #!/bin/bash
 set -e
 
-PROJECT_ID="criticalmars-saas"
-REGION="us-central1"
+# Accept project ID as argument or use default
+PROJECT_ID="${1:-criticalmars-saas}"
+REGION="${2:-us-central1}"
 
 echo "Setting up GCP Secrets for project: $PROJECT_ID"
 echo "================================================"
+echo ""
 
-echo -n "your-jwt-secret-from-env" | gcloud secrets create jwt-secret-key \
-  --project="$PROJECT_ID" \
-  --data-file=- \
-  --replication-policy="automatic" \
-  2>/dev/null || echo "Secret jwt-secret-key already exists"
+# Function to securely read secret values
+read_secret() {
+  local secret_name=$1
+  local env_var=$2
+  local default_prompt=$3
 
-echo -n "vn^:s#4t6s?7ZmtpnvrW=-K=~Q@bbo" | gcloud secrets create db-password \
-  --project="$PROJECT_ID" \
-  --data-file=- \
-  --replication-policy="automatic" \
-  2>/dev/null || echo "Secret db-password already exists"
+  # Check if value is provided via environment variable
+  if [ -n "${!env_var}" ]; then
+    echo "${!env_var}"
+  else
+    # Prompt user for input (hidden for sensitive values)
+    read -s -p "$default_prompt: " secret_value
+    echo >&2  # New line after hidden input
+    echo "$secret_value"
+  fi
+}
 
-echo -n "saas" | gcloud secrets create db-user \
-  --project="$PROJECT_ID" \
-  --data-file=- \
-  --replication-policy="automatic" \
-  2>/dev/null || echo "Secret db-user already exists"
+# Function to create or update secret
+create_or_update_secret() {
+  local secret_name=$1
+  local secret_value=$2
 
-echo -n "saas" | gcloud secrets create db-name \
-  --project="$PROJECT_ID" \
-  --data-file=- \
-  --replication-policy="automatic" \
-  2>/dev/null || echo "Secret db-name already exists"
+  if gcloud secrets describe "$secret_name" --project="$PROJECT_ID" &>/dev/null; then
+    echo "Secret $secret_name already exists. Adding new version..."
+    echo -n "$secret_value" | gcloud secrets versions add "$secret_name" \
+      --project="$PROJECT_ID" \
+      --data-file=-
+  else
+    echo "Creating secret $secret_name..."
+    echo -n "$secret_value" | gcloud secrets create "$secret_name" \
+      --project="$PROJECT_ID" \
+      --data-file=- \
+      --replication-policy="automatic"
+  fi
+}
+
+echo "📝 Please provide secret values (or set via environment variables):"
+echo "   Environment variables: JWT_SECRET_KEY, DB_PASSWORD, DB_USER, DB_NAME"
+echo ""
+
+# Read secrets from environment or prompt
+JWT_SECRET=$(read_secret "jwt-secret-key" "JWT_SECRET_KEY" "Enter JWT secret key")
+DB_PASSWORD=$(read_secret "db-password" "DB_PASSWORD" "Enter database password")
+DB_USER=$(read_secret "db-user" "DB_USER" "Enter database user")
+DB_NAME=$(read_secret "db-name" "DB_NAME" "Enter database name")
+
+echo ""
+echo "Creating/updating secrets..."
+
+create_or_update_secret "jwt-secret-key" "$JWT_SECRET"
+create_or_update_secret "db-password" "$DB_PASSWORD"
+create_or_update_secret "db-user" "$DB_USER"
+create_or_update_secret "db-name" "$DB_NAME"
 
 echo ""
 echo "Getting project number..."

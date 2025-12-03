@@ -24,7 +24,8 @@ type DatabaseConfig struct {
 }
 
 type MeilisearchConfig struct {
-	Host string
+	Host   string
+	APIKey string
 }
 
 type JWTConfig struct {
@@ -57,7 +58,8 @@ func Load() (*Config, error) {
 			Path: getEnv("DATABASE_PATH", "file:articles.db?cache=shared&mode=memory"),
 		},
 		Meilisearch: MeilisearchConfig{
-			Host: getEnv("MEILISEARCH_HOST", "http://localhost:7700"),
+			Host:   getEnv("MEILISEARCH_HOST", "http://localhost:7700"),
+			APIKey: os.Getenv("MEILISEARCH_API_KEY"), // Optional - for production
 		},
 		JWT: JWTConfig{
 			SecretKey:  jwtSecret,

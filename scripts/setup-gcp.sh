@@ -29,7 +29,7 @@ gcloud services enable \
   servicenetworking.googleapis.com \
   secretmanager.googleapis.com \
   cloudresourcemanager.googleapis.com \
-  iam.googleapis.com |
+  iam.googleapis.com \
   artifactregistry.googleapis.com
 
 echo ""

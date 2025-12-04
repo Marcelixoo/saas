@@ -28,7 +28,7 @@ info:
 servers:
   - url: http://localhost:8081
     description: Development server
-  - url: https://api.fashion-catalog.example.com
+  - url: https://saas-api-642086404966.europe-west3.run.app
     description: Production server
 
 tags:

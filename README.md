@@ -1,11 +1,23 @@
-# mini-search-platform
+# SaaS - Searchable Data Platform
 
-The Mini Search Platform is a news platform specialised in making articles searchable.
+A comprehensive SaaS platform providing access to searchable data, statistics, and market insights. Similar to Statista.com, this platform enables users to discover, search, and analyze datasets across multiple domains.
 
-The system is inspired by a real-world and proprietary implementation of a Search Platform that runs for the webshop https://momoxfashion.com (company where I work at the time of writing). Some features were removed and others were added based on my wishes for an open-source version of the product.
+The system provides a unified REST API for managing and searching structured data including articles, statistics, and datasets. Premium features will include access to curated datasets for market research, business intelligence, and industry-specific statistics.
 
-All functionatilly is exposed to collaborating systems via a unified REST API. Therefore, no user interface is available within this project.
+**Core Capabilities:**
+- Full-text search across articles and datasets
+- RESTful API for data management and search
+- Extensible architecture supporting multiple data types (articles, products, datasets)
+- Built for scale with Cloud Run and Meilisearch
 
+**Planned Premium Features:**
+- Curated datasets for statistics and market insights
+- Industry-specific data analytics
+- Advanced filtering and aggregation capabilities
+- Data export in multiple formats
+
+> **Note**
+API endpoint: https://saas-api-642086404966.europe-west3.run.app
 # Table of Contents
 
 - [Functional requirements](#functional-requirements)
@@ -343,6 +355,24 @@ To run vulnerability scanning locally:
 ```bash
 go install golang.org/x/vuln/cmd/govulncheck@latest
 govulncheck ./...
+## Deployment
+
+### Meilisearch Deployment
+
+For production deployments on GCP, Meilisearch needs to be deployed as a separate service. See the comprehensive guide:
+
+📖 **[Meilisearch Deployment Options](docs/MEILISEARCH_DEPLOYMENT.md)**
+
+Available options:
+- **Meilisearch Cloud** (Recommended) - Fully managed, zero infrastructure
+- **Cloud Run** - GCP-native, auto-scaling
+- **GCE VM** - Full control, persistent storage
+- **GKE** - Kubernetes-based deployment
+- And more alternatives
+
+**Quick Start for Cloud Run:**
+```bash
+./deployments/cloud-run/deploy-meilisearch.sh
 ```
 
 ## Further information

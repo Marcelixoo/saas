@@ -1,0 +1,13 @@
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+environment = "prod"
+
+db_tier    = "db-f1-micro"
+db_password = "change-this-strong-password"
+
+jwt_secret = "change-this-jwt-secret-key"
+
+custom_domain = "api.yourdomain.com"
+
+min_instances = 1
+max_instances = 3

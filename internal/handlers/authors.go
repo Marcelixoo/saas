@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"mini-search-platform/internal/models"
+	"mini-search-platform/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +31,7 @@ func AddAuthors(repository AuthorsRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var inputs []AuthorInput
 		if err := c.ShouldBindJSON(&inputs); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
@@ -66,7 +67,7 @@ func AddAuthor(repository AuthorsRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input AuthorInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
@@ -74,7 +75,7 @@ func AddAuthor(repository AuthorsRepository) gin.HandlerFunc {
 
 		lastInsertedId, err := repository.Save(author)
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to insert author"})
+			errors.Handle(c, errors.Database("failed to insert author", err))
 			return
 		}
 

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"mini-search-platform/internal/search"
+	"mini-search-platform/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mcuadros/go-defaults"
@@ -22,7 +23,7 @@ func SearchArticles(engine search.SearchEngine) gin.HandlerFunc {
 		defaults.SetDefaults(&params)
 
 		if err := c.ShouldBindQuery(&params); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
@@ -33,7 +34,7 @@ func SearchArticles(engine search.SearchEngine) gin.HandlerFunc {
 			Sort:   []string{params.Sort},
 		})
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to search articles"})
+			errors.Handle(c, errors.Search("failed to search articles", err))
 			return
 		}
 

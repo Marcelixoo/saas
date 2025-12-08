@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"encoding/json"
+	"log"
 	"mini-search-platform/internal/models"
 	"mini-search-platform/internal/search"
 
@@ -25,9 +26,11 @@ func Init(host string, apiKey string) *MeilisearchEngine {
 	if apiKey != "" {
 		// Production mode with authentication
 		Client = meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
+		log.Printf("Initializing meilisearch client with auth: host: '%s', key: '%s'", host, apiKey)
 	} else {
 		// Development mode without authentication
 		Client = meilisearch.New(host)
+		log.Printf("Initializing meilisearch client without auth: host: '%s'", host)
 	}
 	_, err := Client.CreateIndex(&meilisearch.IndexConfig{
 		Uid:        search.ARTICLES_INDEX_NAME,

@@ -23,7 +23,6 @@ services:
     container_name: fashion-catalog-meilisearch
     environment:
       MEILI_ENV: development
-      MEILI_MASTER_KEY: masterKey
     ports:
       - "7700:7700"
     volumes:

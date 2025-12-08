@@ -126,8 +126,8 @@ func (r *PostgresArticleRepository) FindByTag(tag *models.Tag) ([]*models.Articl
 			t.updated_at
 		FROM articles a
 		JOIN authors au ON a.author_id = au.id
-		JOIN tags t ON at.tag_id = t.id
 		JOIN article_tags at ON a.id = at.article_id
+		JOIN tags t ON at.tag_id = t.id
 		WHERE a.id IN (
 			SELECT at.article_id
 			FROM article_tags at

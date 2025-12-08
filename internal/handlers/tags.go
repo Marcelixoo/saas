@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mini-search-platform/internal/models"
 	"mini-search-platform/internal/search"
+	"mini-search-platform/pkg/errors"
 	"mini-search-platform/pkg/retry"
 
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,7 @@ func AddTagsInBatch(repository models.TagsRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var inputs []TagInput
 		if err := c.ShouldBindJSON(&inputs); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
@@ -66,7 +67,7 @@ func AddTag(repository models.TagsRepository) gin.HandlerFunc {
 
 		var input TagInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
@@ -74,7 +75,7 @@ func AddTag(repository models.TagsRepository) gin.HandlerFunc {
 
 		lastInsertedId, err := repository.Save(tag)
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to insert new tag"})
+			errors.Handle(c, errors.Database("failed to insert new tag", err))
 			return
 		}
 
@@ -94,13 +95,13 @@ func UpdateTagWithLabel(repository models.TagsRepository, sync *search.IndexSync
 
 		var input UpdateTagInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
 		tag, err := repository.FindByLabel(label)
 		if err != nil {
-			c.JSON(404, gin.H{"error": fmt.Sprintf("Could not find tag '%s'", label)})
+			errors.Handle(c, errors.NotFound(fmt.Sprintf("tag '%s'", label)))
 			return
 		}
 
@@ -108,7 +109,7 @@ func UpdateTagWithLabel(repository models.TagsRepository, sync *search.IndexSync
 
 		lastInsertedId, err := repository.Save(tag)
 		if err != nil {
-			c.JSON(500, gin.H{"error": fmt.Sprintf("Failed to update tag '%s'", tag.Label)})
+			errors.Handle(c, errors.Database(fmt.Sprintf("failed to update tag '%s'", tag.Label), err))
 			return
 		}
 
@@ -130,7 +131,7 @@ func ListAllTags(repository models.TagsRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tags, err := repository.FindAll()
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to fetch tags"})
+			errors.Handle(c, errors.Database("failed to fetch tags", err))
 			return
 		}
 
@@ -143,7 +144,7 @@ func GetTagByLabel(repository models.TagsRepository) gin.HandlerFunc {
 		label := c.Param("label")
 		tag, err := repository.FindByLabel(label)
 		if err != nil {
-			c.JSON(404, gin.H{"error": fmt.Sprintf("Could not find tag '%s'", label)})
+			errors.Handle(c, errors.NotFound(fmt.Sprintf("tag '%s'", label)))
 			return
 		}
 
@@ -155,19 +156,19 @@ func FindArticlesByLabels(articlesRepository models.ArticleRepository, tagsRepos
 	return func(c *gin.Context) {
 		label := c.Param("label")
 		if label == "" {
-			c.JSON(400, gin.H{"error": "Label is required"})
+			errors.Handle(c, errors.Validation("label is required"))
 			return
 		}
 
 		tag, err := tagsRepository.FindByLabel(label)
 		if err != nil {
-			c.JSON(404, gin.H{"error": fmt.Sprintf("Could not find tag '%s'", label)})
+			errors.Handle(c, errors.NotFound(fmt.Sprintf("tag '%s'", label)))
 			return
 		}
 
 		articles, err := articlesRepository.FindByTag(tag)
 		if err != nil {
-			c.JSON(500, gin.H{"error": fmt.Sprintf("Could not find articles with tag %s", tag.Label)})
+			errors.Handle(c, errors.Database(fmt.Sprintf("could not find articles with tag %s", tag.Label), err))
 			return
 		}
 

@@ -8,6 +8,7 @@ import (
 	"mini-search-platform/internal/handlers"
 	"mini-search-platform/internal/middleware"
 	"mini-search-platform/internal/search"
+	"mini-search-platform/pkg/logging"
 	"mini-search-platform/pkg/security"
 	"mini-search-platform/pkg/sqlite"
 	"os"
@@ -18,6 +19,8 @@ import (
 )
 
 func main() {
+	logging.Init()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
@@ -43,7 +46,7 @@ func main() {
 
 	jwtSvc := security.NewJWTService(cfg.JWT.SecretKey, cfg.JWT.Issuer, cfg.JWT.AccessTTL)
 
-	meilisearchAPIKey := os.Getenv("MEILISEARCH_API_KEY") // Optional
+	meilisearchAPIKey := os.Getenv("MEILISEARCH_API_KEY")
 	meilisearchHost := os.Getenv("MEILISEARCH_HOST")
 	if meilisearchHost == "" {
 		meilisearchHost = "http://localhost:7700"
@@ -57,8 +60,14 @@ func main() {
 
 	authMiddleware := middleware.NewAuthMiddleware(jwtSvc, users)
 
-	r := gin.Default()
+	r := gin.New()
 
+	// Add custom middleware in order:
+	// 1. Recovery - handle panics with stack traces
+	r.Use(middleware.Recovery())
+	// 2. Request Logger - log single event per request
+	r.Use(logging.RequestLogger())
+	// 3. CORS - handle cross-origin requests
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -99,6 +108,6 @@ func main() {
 	// resource: search (with rate limiting)
 	r.GET("/search", rateLimiter.Middleware(), handlers.SearchArticles(engine))
 
-	log.Printf("Starting server on port %s", cfg.Server.Port)
+	logging.Info("starting server", "port", cfg.Server.Port)
 	r.Run(":" + cfg.Server.Port)
 }

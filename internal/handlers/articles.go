@@ -4,6 +4,7 @@ import (
 	"context"
 	"mini-search-platform/internal/models"
 	"mini-search-platform/internal/search"
+	"mini-search-platform/pkg/errors"
 	"mini-search-platform/pkg/retry"
 
 	"github.com/gin-gonic/gin"
@@ -36,7 +37,7 @@ func AddArticles(repository models.ArticleRepository, finder AuthorsFinder, tags
 	return func(c *gin.Context) {
 		var inputs []ArticleInput
 		if err := c.ShouldBindJSON(&inputs); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
@@ -97,19 +98,19 @@ func AddArticle(repository models.ArticleRepository, finder AuthorsFinder, tagsR
 
 		var input ArticleInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
 		author, err := finder.FindAuthorById(input.AuthorID)
 		if err != nil {
-			c.JSON(400, gin.H{"error": "Author not found"})
+			errors.Handle(c, errors.NotFound("author"))
 			return
 		}
 
 		tags, err := tagsRepository.FindByLabels(input.Tags)
 		if err != nil {
-			c.JSON(400, gin.H{"error": "Could not find one (or more) tags"})
+			errors.Handle(c, errors.NotFound("one or more tags"))
 			return
 		}
 
@@ -117,7 +118,7 @@ func AddArticle(repository models.ArticleRepository, finder AuthorsFinder, tagsR
 
 		lastInsertedId, err := repository.Save(article)
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to save article"})
+			errors.Handle(c, errors.Database("failed to save article", err))
 			return
 		}
 

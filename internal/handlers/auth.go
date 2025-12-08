@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"mini-search-platform/internal/models"
+	"mini-search-platform/pkg/errors"
 	"mini-search-platform/pkg/security"
 	"net/http"
 
@@ -43,23 +44,23 @@ func Register(
 	return func(c *gin.Context) {
 		var req RegisterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
 		existingUser, err := userRepo.FindByEmail(req.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check existing user"})
+			errors.Handle(c, errors.Database("failed to check existing user", err))
 			return
 		}
 		if existingUser != nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+			errors.Handle(c, errors.Conflict("email already registered"))
 			return
 		}
 
 		passwordHash, err := security.HashPassword(req.Password)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+			errors.Handle(c, errors.Internal("failed to hash password", err))
 			return
 		}
 
@@ -67,7 +68,7 @@ func Register(
 		user := models.NewUser(userID, req.Email, passwordHash)
 
 		if err := userRepo.Save(user); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+			errors.Handle(c, errors.Database("failed to create user", err))
 			return
 		}
 
@@ -75,7 +76,7 @@ func Register(
 		tenant := models.NewTenant(tenantID, req.TenantName)
 
 		if err := tenantRepo.Save(tenant); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create tenant"})
+			errors.Handle(c, errors.Database("failed to create tenant", err))
 			return
 		}
 
@@ -83,19 +84,19 @@ func Register(
 		membership := models.NewMembership(membershipID, userID, tenantID, models.RoleAdmin)
 
 		if err := membershipRepo.Save(membership); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create membership"})
+			errors.Handle(c, errors.Database("failed to create membership", err))
 			return
 		}
 
 		accessToken, err := jwtService.GenerateToken(userID, req.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+			errors.Handle(c, errors.Internal("failed to generate token", err))
 			return
 		}
 
 		refreshToken, err := jwtService.GenerateToken(userID, req.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
+			errors.Handle(c, errors.Internal("failed to generate refresh token", err))
 			return
 		}
 
@@ -120,35 +121,35 @@ func Login(
 	return func(c *gin.Context) {
 		var req LoginRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
 		user, err := userRepo.FindByEmail(req.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to find user"})
+			errors.Handle(c, errors.Database("failed to find user", err))
 			return
 		}
 
 		if user == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			errors.Handle(c, errors.Unauthorized("invalid credentials"))
 			return
 		}
 
 		if err := security.ComparePassword(user.PasswordHash, req.Password); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			errors.Handle(c, errors.Unauthorized("invalid credentials"))
 			return
 		}
 
 		accessToken, err := jwtService.GenerateToken(user.ID, user.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+			errors.Handle(c, errors.Internal("failed to generate token", err))
 			return
 		}
 
 		refreshToken, err := jwtService.GenerateToken(user.ID, user.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
+			errors.Handle(c, errors.Internal("failed to generate refresh token", err))
 			return
 		}
 
@@ -173,13 +174,13 @@ func RefreshToken(jwtService *security.JWTService, accessTTL int64) gin.HandlerF
 
 		var req RefreshRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			errors.Handle(c, errors.Validation(err.Error()))
 			return
 		}
 
 		newAccessToken, err := jwtService.RefreshToken(req.RefreshToken)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+			errors.Handle(c, errors.Unauthorized("invalid refresh token"))
 			return
 		}
 
@@ -202,18 +203,18 @@ func GetCurrentUser(userRepo models.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, err := security.GetUserID(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			errors.Handle(c, errors.Unauthorized("authentication required"))
 			return
 		}
 
 		user, err := userRepo.FindByID(userID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
+			errors.Handle(c, errors.Database("failed to fetch user", err))
 			return
 		}
 
 		if user == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			errors.Handle(c, errors.NotFound("user"))
 			return
 		}
 

@@ -1,48 +1,39 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: fashion-catalog-postgres
+    environment:
+      POSTGRES_DB: fashiondb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   meilisearch:
-    image: getmeili/meilisearch:v1.5
+    image: getmeili/meilisearch:v1.7
     container_name: fashion-catalog-meilisearch
+    environment:
+      MEILI_ENV: development
+      MEILI_MASTER_KEY: masterKey
     ports:
       - "7700:7700"
-    environment:
-      - MEILI_ENV=development
-      - MEILI_NO_ANALYTICS=true
     volumes:
       - meilisearch_data:/meili_data
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:7700/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
-
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fashion-catalog-api
-    ports:
-      - "${SERVER_PORT:-8081}:${SERVER_PORT:-8081}"
-    env_file:
-      - .env
-    environment:
-      - GIN_MODE=${GIN_MODE:-debug}
-    volumes:
-      - sqlite_data:/app/data
-    depends_on:
-      meilisearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${SERVER_PORT:-8081}/api/me"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
+  postgres_data:
   meilisearch_data:
-  sqlite_data:

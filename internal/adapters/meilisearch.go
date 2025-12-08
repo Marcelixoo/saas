@@ -38,17 +38,21 @@ func Init(host string, apiKey string) *MeilisearchEngine {
 	}
 
 	Index = Client.Index(search.ARTICLES_INDEX_NAME)
-	_, err = Index.UpdateSearchableAttributes(&[]string{"title", "body", "author", "tags"})
+
+	searchableAttrs := []string{"title", "body", "author", "tags"}
+	_, err = Index.UpdateSearchableAttributes(&searchableAttrs)
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = Index.UpdateFilterableAttributes(&[]string{"author", "tags"})
+	filterableAttrs := []interface{}{"author", "tags"}
+	_, err = Index.UpdateFilterableAttributes(&filterableAttrs)
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = Index.UpdateSortableAttributes(&[]string{"author", "title"})
+	sortableAttrs := []string{"author", "title"}
+	_, err = Index.UpdateSortableAttributes(&sortableAttrs)
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +61,7 @@ func Init(host string, apiKey string) *MeilisearchEngine {
 }
 
 func (e *MeilisearchEngine) IndexArticles(articles []*models.Article) error {
-	_, err := e.Index.AddDocuments(articles)
+	_, err := e.Index.AddDocuments(articles, nil)
 	return err
 }
 
@@ -78,22 +82,23 @@ func (e *MeilisearchEngine) Search(query string, options search.SearchOptions) (
 		}, err
 	}
 
-	resultJSON, err := result.MarshalJSON()
+	// Convert Hits to json and back to extract articles as SearchHit
+	hitsJSON, err := json.Marshal(result.Hits)
 	if err != nil {
 		return search.SearchResponse{
 			Query: query,
 		}, err
 	}
 
-	var hits = search.SearchHits{}
-	if err := json.Unmarshal(resultJSON, &hits); err != nil {
+	var articles []search.SearchHit
+	if err := json.Unmarshal(hitsJSON, &articles); err != nil {
 		return search.SearchResponse{
 			Query: query,
 		}, err
 	}
 
 	return search.SearchResponse{
-		Hits:   hits.Hits,
+		Hits:   articles,
 		Offset: int(result.Offset),
 		Limit:  int(result.Limit),
 		Total:  int(result.EstimatedTotalHits),

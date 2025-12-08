@@ -109,5 +109,7 @@ func main() {
 	r.GET("/search", rateLimiter.Middleware(), handlers.SearchArticles(engine))
 
 	logging.Info("starting server", "port", cfg.Server.Port)
-	r.Run(":" + cfg.Server.Port)
+	if err := r.Run(":" + cfg.Server.Port); err != nil {
+		logging.Error("failed to start server %v", err)
+	}
 }

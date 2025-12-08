@@ -110,6 +110,6 @@ func main() {
 
 	logging.Info("starting server", "port", cfg.Server.Port)
 	if err := r.Run(":" + cfg.Server.Port); err != nil {
-		logging.Error("failed to start server %v", err)
+		logging.Error("failed to start server", "error", err)
 	}
 }

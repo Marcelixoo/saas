@@ -36,7 +36,7 @@ fi
 echo ""
 echo "2️⃣  Deploying Meilisearch service..."
 gcloud run deploy $SERVICE_NAME \
-  --image getmeili/meilisearch:v1.5 \
+  --image getmeili/meilisearch:v1.13 \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated \

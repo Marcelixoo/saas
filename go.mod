@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/mcuadros/go-defaults v1.2.0
-	github.com/meilisearch/meilisearch-go v0.31.0
+	github.com/meilisearch/meilisearch-go v0.34.2
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
 	golang.org/x/crypto v0.45.0

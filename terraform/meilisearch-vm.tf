@@ -53,7 +53,7 @@ resource "google_compute_instance" "meilisearch" {
       -e MEILI_ENV=production \
       -e MEILI_NO_ANALYTICS=true \
       -e MEILI_MAX_INDEXING_MEMORY=2gb \
-      getmeili/meilisearch:v1.5
+      getmeili/meilisearch:v1.13
 
     echo "Setting up log rotation..."
     cat > /etc/logrotate.d/meilisearch <<'LOGROTATE'

@@ -3,7 +3,12 @@
 # Before deploying to a real GKE cluster you would additionally want to:
 #   - point `images:` below at your Artifact Registry repo
 #   - use a StorageClass appropriate for GKE (e.g. standard-rwo / premium-rwo)
-#   - move secrets to Secret Manager (CSI driver) instead of plain k8s Secrets
+#   - move secrets to Secret Manager (CSI driver) instead of plain k8s Secrets.
+#     This overlay intentionally does NOT patch base/secret.yaml, so a `kubectl
+#     apply -k` here would inherit the base's dev-placeholder values — do not
+#     apply this overlay as-is. Supply real secrets out-of-band (Secret
+#     Manager CSI driver, or a `patches:`/`secretGenerator:` entry here that
+#     is never committed) before deploying to any real GKE cluster.
 #   - use a GKE-managed cert + static IP with the "gce" Ingress class
 
 resources:

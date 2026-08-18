@@ -182,6 +182,12 @@ export async function login(
   });
 }
 
+export type CurrentUser = { id: string; email: string; name: string };
+
+export async function getMe(token?: string): Promise<CurrentUser> {
+  return request('/me', {}, token);
+}
+
 export async function listOrganizations(token?: string): Promise<Organization[]> {
   return request('/organizations', {}, token);
 }

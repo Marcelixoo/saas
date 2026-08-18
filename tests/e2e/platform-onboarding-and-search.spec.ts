@@ -31,9 +31,10 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
   await expect(page.getByTestId('plan-badge')).toHaveText(/FREE/i);
 
   // 6. Seed the sample catalog (a 500-product slice of the real catalog) for
-  // this org, from the Catalog tab. Seeding runs in a few chunked requests, so
-  // allow extra time.
-  await page.getByTestId('tab-catalog').click();
+  // this org. Seeding is triggered from the topbar action; the confirmation
+  // surfaces in the Catalog data section. Seeding runs in a few chunked
+  // requests, so allow extra time.
+  await page.getByTestId('nav-catalog').click();
   await page.getByTestId('seed-catalog').click();
   await expect(page.getByTestId('catalog-seed-info')).toContainText(/Seeded/i, {
     timeout: 30000,
@@ -45,7 +46,7 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
   // so a query issued immediately after seeding can legitimately return no hits
   // yet. Re-issue the search (bounded retry) until the freshly-seeded catalog
   // becomes searchable.
-  await page.getByTestId('tab-search').click();
+  await page.getByTestId('nav-search').click();
   await page.getByTestId('search-input').fill('Samsung');
   await expect(async () => {
     await page.getByTestId('search-submit').click();
@@ -54,8 +55,8 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
     });
   }).toPass({ timeout: 20000 });
 
-  // 9. Confirm usage information is visible on the Metrics tab.
-  await page.getByTestId('tab-metrics').click();
+  // 9. Confirm usage information is visible on the Metrics section.
+  await page.getByTestId('nav-metrics').click();
   await expect(page.getByTestId('usage-search-count')).toBeVisible();
   await expect(page.getByTestId('usage-search-count')).not.toHaveText('0');
 });

@@ -1,18 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { ApiError, type CatalogDocument } from '@/lib/api';
+import { type CatalogDocument } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Spinner } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -21,23 +14,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useToast } from '@/components/ui/use-toast';
 import { useActiveOrg } from '@/lib/hooks/useActiveOrg';
-import { useSeedCatalog } from '@/lib/hooks/mutations';
 import { useCatalog } from '@/lib/hooks/useCatalog';
+import { PageHeader } from './sections';
 
 const PAGE_SIZE = 20;
 
 /**
- * Catalog tab: seed the sample catalog, then browse it page by page. Backed
- * by `useCatalog` (SWR) for the paginated document explorer.
+ * Catalog data section: browse the tenant's indexed documents page by page.
+ * Seeding is triggered from the topbar; `seedInfo` carries the last result so
+ * the confirmation surfaces here next to the catalog it populated.
  */
-export default function CatalogTab() {
+export default function CatalogSection({ seedInfo }: { seedInfo: string | null }) {
   const { selectedOrg } = useActiveOrg();
   const slug = selectedOrg?.slug ?? '';
-  const { trigger: seed, isMutating } = useSeedCatalog(slug);
-  const { toast } = useToast();
-  const [info, setInfo] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
   const { documents, total, isLoading, error } = useCatalog(slug, {
@@ -49,24 +39,6 @@ export default function CatalogTab() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasPrev = offset > 0;
   const hasNext = offset + PAGE_SIZE < total;
-
-  async function handleSeed() {
-    if (!slug) return;
-    setInfo(null);
-    try {
-      const result = await seed();
-      const msg = `Seeded ${result?.accepted ?? 0} products.`;
-      setInfo(msg);
-      setOffset(0);
-      toast({ variant: 'success', title: 'Catalog seeded', description: msg });
-    } catch (err) {
-      toast({
-        variant: 'error',
-        title: 'Seeding failed',
-        description: err instanceof ApiError ? err.message : 'Please try again.',
-      });
-    }
-  }
 
   function handlePrev() {
     setOffset((current) => Math.max(0, current - PAGE_SIZE));
@@ -86,34 +58,18 @@ export default function CatalogTab() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Sample catalog</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <CardDescription>
-            Seed a 500-product sample of the real product catalog (with images and prices) for
-            this organization.
-          </CardDescription>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="primary"
-              data-testid="seed-catalog"
-              onClick={handleSeed}
-              disabled={isMutating}
-            >
-              {isMutating ? <Spinner size="sm" /> : null}
-              Seed sample catalog
-            </Button>
-            {info ? (
-              <span data-testid="catalog-seed-info" className="text-[13px] font-medium text-good">
-                {info}
-              </span>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col gap-[18px]">
+      <PageHeader
+        title="Catalog data"
+        description="Inspect the documents indexed for this organization. Use “Seed catalog” to load a 500-product sample."
+        actions={
+          seedInfo ? (
+            <span data-testid="catalog-seed-info" className="text-[13px] font-semibold text-good">
+              {seedInfo}
+            </span>
+          ) : undefined
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -137,7 +93,7 @@ export default function CatalogTab() {
           ) : documents.length === 0 ? (
             <EmptyState
               title="No products indexed yet"
-              description="Seed the sample catalog above to populate this list."
+              description="Use “Seed catalog” in the topbar to populate this list."
             />
           ) : (
             <>

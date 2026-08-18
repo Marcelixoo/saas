@@ -197,38 +197,45 @@ Quota scope is **organization**, not source IP.
 
 Playwright couples to these — never to CSS classes.
 
-The app is a **single page** (`/`) with a header (org switcher + plan badge +
-logout) and a `Tabs` control (Metrics · Search · Catalog · Settings). Existing
-testids keep the same meaning; actions simply live under their tab now, so tests
-click the tab first.
+The app is a **single page** (`/`) laid out as a **sidebar console**: a left
+sidebar (brand, org picker + create affordance, section nav, user footer), a
+topbar (breadcrumb, operational status, plan indicator, seed action), and a
+content area that swaps sections. Nav is client-side section switching (no
+routing). Existing action testids keep the same meaning; navigation moved from
+`tab-*` triggers to `nav-*` sidebar entries, so tests click the sidebar entry
+first.
 
 ```
 # auth (login screen)
 signup-email        signup-password     signup-submit       signup-name
 login-email         login-password      login-submit
-# header (always visible when authenticated)
+# sidebar org picker (always visible when authenticated)
 organization-create organization-name   organization-submit
-organization-select plan-badge
-# tabs
-tab-metrics         tab-search          tab-catalog         tab-settings
-# Metrics tab
-usage-search-count  usage-rate-limit-count
-# Search tab
-search-input        search-submit       search-results      search-hit    search-hit-price
-# Catalog tab
-seed-catalog        catalog-seed-info
-# Settings tab
-plan-select
+organization-select
+# sidebar nav (client-side section switch)
+nav-metrics   nav-search   nav-catalog   nav-members   nav-upgrade   nav-settings
+# topbar (always visible)
+plan-badge          seed-catalog
+# Metrics section
+usage-search-count  usage-rate-limit-count   metrics-chart
+# Search section
+search-input   search-submit   search-results   search-hit   search-hit-price
+search-sort    search-facet-<field>
+# Catalog section
+catalog-seed-info   catalog-table   catalog-row   catalog-prev-page   catalog-next-page
+# Members section
+members-table   member-invite-email   member-invite-role   member-invite-submit   member-remove
+# Settings section
+plan-select    org-rename-input    org-rename-submit
 ```
+
+`seed-catalog` lives in the topbar (available from any section); its result
+surfaces as `catalog-seed-info` in the Catalog data section. `plan-badge` is the
+plan chip inside the topbar Plan button (opens Settings).
 
 `search-results` container renders one child (`search-hit`) per hit; each hit
 exposes its title as text so Playwright can assert presence/absence, and its
 price via `search-hit-price`.
-
-**Reserved for page-agents** (add when built, do not rename): `metrics-chart`,
-`search-facet-<field>`, `search-sort`, `catalog-table`, `catalog-row`,
-`members-table`, `member-invite-email`, `member-invite-role`, `member-invite-submit`,
-`member-remove`, `org-rename-input`, `org-rename-submit`.
 
 ## 8. Acceptance environment variables
 
@@ -259,16 +266,21 @@ endpoints required.
 ### UI rebrand page-agents (feat/ui-rebrand)
 
 The rebrand is split by page. The **foundation** (main agent) owns the shell and
-shared wiring; each **page-agent** owns exactly the files below (frontend tab +
-its hooks + its backend), which are file-disjoint so they build in parallel.
+shared wiring; each **page-agent** owns exactly the files below (frontend section
++ its hooks + its backend), which are file-disjoint so they build in parallel.
+
+The shell is a **sidebar console** (`app/components/{Sidebar,Topbar,Dashboard}.tsx`
++ `app/components/sections/sections.tsx`); each page is a section under
+`app/components/sections/*Section.tsx`. Members were split out of Settings into
+their own section; an `UpgradeRequestsSection` is a deferred placeholder.
 
 | Agent | Frontend (owns) | Backend (owns) |
 |-------|-----------------|----------------|
-| Foundation | `app/page.tsx`, `app/components/{AuthPanel,AppHeader,Dashboard}.tsx`, `app/components/tabs/*` (basic), `lib/api.ts` (client surface), `lib/hooks/{useOrganizations,useActiveOrg,useUsage,mutations}.*`, `tests/e2e/*` | `app.ts` wiring, route stubs `routes/{metrics,documents,members}.ts`, Go `main.go` route + `internal/{search/documents.go,adapters/meilisearch_documents.go,handlers/internal_documents.go}` stubs |
-| A — Metrics | `app/components/tabs/MetricsTab.tsx`, `lib/hooks/useUsageTimeseries.ts` | `apps/control-plane/src/routes/metrics.ts` (+ test) |
-| B — Search | `app/components/tabs/SearchTab.tsx`, `lib/hooks/useSearch.ts` | `routes/organizations.ts` (search route only), `lib/searchClient.ts`; Go `internal/adapters/meilisearch.go`, `internal/search/engine.go`, `internal/handlers/internal_search.go` (+ tests) |
-| C — Catalog | `app/components/tabs/CatalogTab.tsx`, `lib/hooks/useCatalog.ts` | `routes/documents.ts` (+ test); Go `internal/search/documents.go`, `internal/adapters/meilisearch_documents.go`, `internal/handlers/internal_documents.go` |
-| D — Settings | `app/components/tabs/SettingsTab.tsx`, `lib/hooks/{useMembers,useUpdateOrganization}.ts` | `routes/members.ts` (members CRUD + `PATCH /organizations/:slug`) (+ test) |
+| Foundation | `app/page.tsx`, `app/components/{AuthPanel,Sidebar,Topbar,Dashboard}.tsx`, `app/components/sections/{sections,UpgradeRequestsSection}.tsx`, `lib/api.ts` (client surface), `lib/hooks/{useOrganizations,useActiveOrg,useUsage,useMe,mutations}.*`, `tests/e2e/*` | `app.ts` wiring, route stubs `routes/{metrics,documents,members}.ts`, Go `main.go` route + `internal/{search/documents.go,adapters/meilisearch_documents.go,handlers/internal_documents.go}` stubs |
+| A — Metrics | `app/components/sections/MetricsSection.tsx`, `lib/hooks/useUsageTimeseries.ts` | `apps/control-plane/src/routes/metrics.ts` (+ test) |
+| B — Search | `app/components/sections/SearchSection.tsx`, `lib/hooks/useSearch.ts` | `routes/organizations.ts` (search route only), `lib/searchClient.ts`; Go `internal/adapters/meilisearch.go`, `internal/search/engine.go`, `internal/handlers/internal_search.go` (+ tests) |
+| C — Catalog | `app/components/sections/CatalogSection.tsx`, `lib/hooks/useCatalog.ts` | `routes/documents.ts` (+ test); Go `internal/search/documents.go`, `internal/adapters/meilisearch_documents.go`, `internal/handlers/internal_documents.go` |
+| D — Settings/Members | `app/components/sections/{SettingsSection,MembersSection}.tsx`, `lib/hooks/{useMembers,useUpdateOrganization}.ts` | `routes/members.ts` (members CRUD + `PATCH /organizations/:slug`) (+ test) |
 
 Shared files edited once by Foundation (`app.ts`, `cmd/server/main.go`,
 `apps/web/package.json`, `apps/web/lib/api.ts`) are frozen for page-agents —

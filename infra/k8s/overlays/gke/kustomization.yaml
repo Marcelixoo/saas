@@ -1,0 +1,24 @@
+# GKE overlay — manifests only. NOT applied/deployed by Agent E; local k3d is
+# the verified deployment target for this submission (see infra/README.md).
+# Before deploying to a real GKE cluster you would additionally want to:
+#   - point `images:` below at your Artifact Registry repo
+#   - use a StorageClass appropriate for GKE (e.g. standard-rwo / premium-rwo)
+#   - move secrets to Secret Manager (CSI driver) instead of plain k8s Secrets
+#   - use a GKE-managed cert + static IP with the "gce" Ingress class
+
+resources:
+  - ../../base
+
+patches:
+  - path: ingress-patch.yaml
+
+# images:
+#   - name: saas/control-plane
+#     newName: us-central1-docker.pkg.dev/<project>/saas/control-plane
+#     newTag: <tag>
+#   - name: saas/web
+#     newName: us-central1-docker.pkg.dev/<project>/saas/web
+#     newTag: <tag>
+#   - name: saas/search-api
+#     newName: us-central1-docker.pkg.dev/<project>/saas/search-api
+#     newTag: <tag>

@@ -1,0 +1,30 @@
+# Ingress exposes ONLY web and control-plane, per CONTRACT.md §1/§9.
+# search-api, postgres, redis, meilisearch are ClusterIP-only and are never
+# referenced here. Hosts are overridden per-overlay.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: saas-ingress
+  namespace: saas
+spec:
+  rules:
+    - host: web.example.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3000
+    - host: api.example.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: control-plane
+                port:
+                  number: 8080

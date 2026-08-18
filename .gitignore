@@ -50,3 +50,6 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Control plane build output (apps/control-plane)
+apps/control-plane/dist/

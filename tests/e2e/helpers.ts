@@ -10,7 +10,18 @@ export function runId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Register (idempotent-ish) then login, returning a bearer token. */
+/**
+ * A unique, still-allow-listable signup email per run. Uses plus-addressing so
+ * the allowlist can match on domain (e.g. `@e2e.test`) while every run gets a
+ * fresh identity — avoids "email already registered" flakiness once data
+ * persists. See CONTRACT.md §3 (allowlist supports domain entries).
+ */
+export function uniqueEmail(base = E2E_EMAIL): string {
+  const [local, domain] = base.split('@');
+  return `${local}+${runId()}@${domain}`;
+}
+
+/** Register (ignore-if-exists) then login, returning a bearer token. */
 export async function authenticate(
   request: APIRequestContext,
   email: string,
@@ -24,8 +35,18 @@ export async function authenticate(
   const res = await request.post(`${API_URL}/auth/login`, {
     data: { email, password },
   });
-  const body = await res.json();
-  return body.token as string;
+  if (!res.ok()) {
+    throw new Error(
+      `login failed for ${email}: HTTP ${res.status()} — ${await res.text()}`,
+    );
+  }
+  const body = await res.json().catch(() => null);
+  if (!body || typeof body.token !== 'string') {
+    throw new Error(
+      `login response for ${email} did not contain a token: ${JSON.stringify(body)}`,
+    );
+  }
+  return body.token;
 }
 
 export function authHeader(token: string): Record<string, string> {

@@ -23,6 +23,8 @@ on:
     paths:
       - 'tests/e2e/**'
       - 'playwright.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/acceptance-e2e.yml'
 
 # Non-blocking: this job is allowed to fail while features are being built.
@@ -38,7 +40,7 @@ jobs:
         with:
           node-version: '20'
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Run acceptance suite (informational)

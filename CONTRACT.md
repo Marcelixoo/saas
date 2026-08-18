@@ -45,7 +45,7 @@ Base URL (local): `http://localhost:8080`. All request/response bodies are JSON.
 
 | Method | Path                                    | Auth        | Notes |
 |--------|-----------------------------------------|-------------|-------|
-| POST   | `/auth/register`                        | none        | email must be in `ALLOWED_SIGNUP_EMAILS` |
+| POST   | `/auth/register`                        | none        | email must match `ALLOWED_SIGNUP_EMAILS` (see note) |
 | POST   | `/auth/login`                           | none        | returns JWT |
 | GET    | `/me`                                   | Bearer      | current user |
 | GET    | `/organizations`                        | Bearer      | orgs the user belongs to |
@@ -62,6 +62,13 @@ Base URL (local): `http://localhost:8080`. All request/response bodies are JSON.
 { "email": "user@example.com", "password": "secret12", "name": "User Name" }
 ```
 Response `201`: `{ "user": { "id", "email", "name" }, "token": "<jwt>" }`
+
+**Allowlist matching (`ALLOWED_SIGNUP_EMAILS`)** — comma-separated list whose entries
+are either a full email (`alice@corp.com`) **or** a domain prefixed with `@`
+(`@e2e.test`, matches any local-part at that domain). This lets the acceptance suite
+generate a unique, still-allow-listed email per run via plus-addressing
+(`assessor+<runid>@e2e.test`) and avoids "email already registered" flakiness once
+data persists. Matching is case-insensitive.
 
 `POST /auth/login` — request `{ "email", "password" }`;
 Response `200`: `{ "user": { "id", "email", "name" }, "token": "<jwt>" }`

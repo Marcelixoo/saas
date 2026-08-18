@@ -4,7 +4,7 @@ import {
   authenticate,
   authHeader,
   runId,
-  E2E_EMAIL,
+  uniqueEmail,
   E2E_PASSWORD,
 } from './helpers';
 
@@ -29,7 +29,7 @@ async function createOrg(ctx: any, token: string, name: string) {
 
 test('tenant data is isolated and a forged X-Tenant-ID cannot bypass it', async () => {
   const ctx = await pwRequest.newContext();
-  const token = await authenticate(ctx, E2E_EMAIL, E2E_PASSWORD);
+  const token = await authenticate(ctx, uniqueEmail(), E2E_PASSWORD);
   const id = runId();
 
   const a = await createOrg(ctx, token, `Tenant A ${id}`);
@@ -69,8 +69,12 @@ test('tenant data is isolated and a forged X-Tenant-ID cannot bypass it', async 
 });
 
 test('FREE plan hits 429 and PRO plan allows a higher quota', async () => {
+  // This test intentionally waits for a full rate-limit window (~60s) to elapse
+  // after upgrading to PRO, so it needs more than the global 60s per-test budget.
+  test.setTimeout(180_000);
+
   const ctx = await pwRequest.newContext();
-  const token = await authenticate(ctx, E2E_EMAIL, E2E_PASSWORD);
+  const token = await authenticate(ctx, uniqueEmail(), E2E_PASSWORD);
   const id = runId();
 
   const org = await createOrg(ctx, token, `Quota Org ${id}`);

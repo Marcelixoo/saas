@@ -81,10 +81,10 @@ In short:
 ```bash
 k3d cluster create saas --port "8088:80@loadbalancer" --agents 1 --wait
 docker build -f infra/docker/search-api.Dockerfile -t saas/search-api:local .
-docker build -f infra/docker/control-plane.Dockerfile -t saas/control-plane:local apps/control-plane
+docker build -f infra/docker/control-plane.Dockerfile -t saas/control-plane:local .
 docker build -f infra/docker/web.Dockerfile \
   --build-arg NEXT_PUBLIC_API_URL=http://api.localtest.me:8088 \
-  -t saas/web:local apps/web
+  -t saas/web:local .
 k3d image import saas/search-api:local saas/control-plane:local saas/web:local -c saas
 kubectl apply -k infra/k8s/overlays/local
 kubectl -n saas get pods -w
@@ -159,6 +159,7 @@ and known limitations are in
 - [`infra/README.md`](infra/README.md) — Kubernetes runtime details (owned by
   the infra work; kept as the source of truth for k8s specifics).
 - [`load/README.md`](load/README.md) — load generator details.
+- [`decisions/README.md`](decisions/README.md) — Architectural Decision Records (ADRs).
 - [`docs/load-test-results.md`](docs/load-test-results.md) — a sample
   validation run's numbers (not a performance benchmark or capacity claim).
 - [`THREAT_MODEL_ANALYSIS.md`](THREAT_MODEL_ANALYSIS.md) — threat model and

@@ -67,10 +67,10 @@ k3d cluster create saas --port "8088:80@loadbalancer" --agents 1 --wait
 #    for why they differ slightly from the app-owned Dockerfiles, e.g.
 #    web needs NEXT_PUBLIC_API_URL baked in at build time for the browser).
 docker build -f infra/docker/search-api.Dockerfile -t saas/search-api:local .
-docker build -f infra/docker/control-plane.Dockerfile -t saas/control-plane:local apps/control-plane
+docker build -f infra/docker/control-plane.Dockerfile -t saas/control-plane:local .
 docker build -f infra/docker/web.Dockerfile \
   --build-arg NEXT_PUBLIC_API_URL=http://api.localtest.me:8088 \
-  -t saas/web:local apps/web
+  -t saas/web:local .
 
 # 3. Import into the cluster's containerd (no registry needed).
 k3d image import saas/search-api:local saas/control-plane:local saas/web:local -c saas

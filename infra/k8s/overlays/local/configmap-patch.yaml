@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: saas-config
+  namespace: saas
+data:
+  # Acceptance-tuned rate limits so the E2E suite can exercise 429s quickly.
+  FREE_SEARCH_LIMIT: "3"
+  PRO_SEARCH_LIMIT: "10"
+  ALLOWED_SIGNUP_EMAILS: "@e2e.test"

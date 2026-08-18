@@ -1,0 +1,4 @@
+# Local corporate/proxy CA certs, if any, needed to build behind a
+# TLS-intercepting egress proxy. Never committed - see infra/README.md.
+*.pem
+!.gitkeep

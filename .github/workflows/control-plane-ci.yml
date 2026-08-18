@@ -42,3 +42,8 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # Informational only: surfaces known vulnerabilities in dependencies
+      # without failing the build on unfixable transitive advisories.
+      - name: Dependency vulnerability scan (informational)
+        run: npm audit --audit-level=high || echo "npm audit reported findings; review above (non-blocking)."

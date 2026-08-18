@@ -20,6 +20,10 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL ?? '',
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
   jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
+  // Every JWT issued by the control plane carries an expiry (see app.ts,
+  // where this is wired as the default `sign` option for @fastify/jwt).
+  // Keeps compromised/leaked tokens useful for a bounded window only.
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '24h',
   searchApiUrl: process.env.SEARCH_API_URL ?? 'http://search-api:8081',
   freeSearchLimit: Number(process.env.FREE_SEARCH_LIMIT ?? 30),
   proSearchLimit: Number(process.env.PRO_SEARCH_LIMIT ?? 300),

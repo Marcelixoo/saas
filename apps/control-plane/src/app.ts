@@ -11,7 +11,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.decorate('deps', deps);
 
-  app.register(jwt, { secret: config.jwtSecret });
+  // `sign.expiresIn` is applied to every `app.jwt.sign(...)` call unless
+  // overridden per-call, so every issued token carries an `exp` claim and
+  // `request.jwtVerify()` (see lib/auth.ts) rejects expired tokens with 401.
+  app.register(jwt, { secret: config.jwtSecret, sign: { expiresIn: config.jwtExpiresIn } });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {

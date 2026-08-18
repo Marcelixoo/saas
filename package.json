@@ -1,0 +1,14 @@
+{
+  "name": "saas-acceptance-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "System-level Playwright acceptance suite for the multi-tenant search SaaS platform. Owned by the orchestrator.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "e2e:install": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

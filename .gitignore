@@ -44,3 +44,9 @@ github-actions-key.json
 # Database
 *.db
 *.sqlite
+# Node / Playwright acceptance harness
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

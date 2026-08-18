@@ -86,6 +86,11 @@ spec:
                 configMapKeyRef:
                   name: saas-config
                   key: ALLOWED_SIGNUP_EMAILS
+            - name: CORS_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: saas-config
+                  key: CORS_ORIGINS
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

@@ -284,9 +284,9 @@ export default function OrganizationPanel({ token, onUnauthorized }: Props) {
                 Search
               </button>
             </form>
+            {hits === null && <p>No search performed yet.</p>}
+            {hits !== null && hits.length === 0 && <p>No results found.</p>}
             <div data-testid="search-results" style={{ marginTop: '1rem' }}>
-              {hits === null && <p>No search performed yet.</p>}
-              {hits !== null && hits.length === 0 && <p>No results found.</p>}
               {hits !== null &&
                 hits.map((hit) => (
                   <div key={hit.id} data-testid="search-hit" style={{ padding: '0.25rem 0' }}>

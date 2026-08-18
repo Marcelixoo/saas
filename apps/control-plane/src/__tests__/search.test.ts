@@ -80,6 +80,42 @@ describe('search + usage + tenant trust', () => {
     expect(ctx.searchClient.calls.index[0].tenantId).toBe(org.id);
   });
 
+  it('passes body, author, and tags through validation and on to the search client', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const org = await createOrg(ctx, token);
+
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/organizations/${org.slug}/documents/batch`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        documents: [
+          {
+            id: 'sku-1',
+            title: 'Red Nike Shoe',
+            body: 'A breathable running shoe with reinforced soles.',
+            author: 'Nike Design Team',
+            tags: ['running', 'breathable'],
+            brand: 'Nike',
+            category: 'shoes',
+          },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(202);
+    expect(JSON.parse(res.body).accepted).toBe(1);
+    expect(ctx.searchClient.calls.index).toHaveLength(1);
+    expect(ctx.searchClient.calls.index[0].documents[0]).toMatchObject({
+      id: 'sku-1',
+      title: 'Red Nike Shoe',
+      body: 'A breathable running shoe with reinforced soles.',
+      author: 'Nike Design Team',
+      tags: ['running', 'breathable'],
+      brand: 'Nike',
+      category: 'shoes',
+    });
+  });
+
   it('denies documents/batch for a plain MEMBER (OWNER/ADMIN only)', async () => {
     const owner = await registerAndLogin(ctx, 'allowed@e2e.test');
     const org = await createOrg(ctx, owner.token);

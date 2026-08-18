@@ -21,6 +21,9 @@ const batchDocumentSchema = z.object({
       z.object({
         id: z.string().min(1),
         title: z.string().min(1),
+        body: z.string().optional(),
+        author: z.string().optional(),
+        tags: z.array(z.string()).optional(),
         brand: z.string().optional(),
         category: z.string().optional(),
       }),

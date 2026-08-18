@@ -17,6 +17,9 @@ export interface SearchResponse {
 export interface BatchDocument {
   id: string;
   title: string;
+  body?: string;
+  author?: string;
+  tags?: string[];
   brand?: string;
   category?: string;
   [key: string]: unknown;

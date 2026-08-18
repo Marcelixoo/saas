@@ -206,6 +206,82 @@ func TestTenantIsolation_SearchOnlyReturnsOwnTenantDocuments(t *testing.T) {
 	}
 }
 
+// TestInternalDocumentsBatch_BodyAndTagsRoundTrip asserts the full document
+// shape (body, author, tags) survives the batch-index -> search round trip,
+// not just id/title/brand/category. It indexes a document whose only
+// distinguishing content lives in `body` and `tags`, then confirms it is
+// findable by a term that appears ONLY there.
+func TestInternalDocumentsBatch_BodyAndTagsRoundTrip(t *testing.T) {
+	r, _ := newTestRouter(t)
+
+	tenant := uuid.NewString()
+	uniqueBodyTerm := fmt.Sprintf("Xylophonic%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+	uniqueTag := fmt.Sprintf("tag-%s", uuid.NewString())
+
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id":     "sku-" + uuid.NewString(),
+		"title":  "Ordinary Product",
+		"body":   fmt.Sprintf("This product features a %s coating.", uniqueBodyTerm),
+		"author": "Catalog Team",
+		"tags":   []string{uniqueTag, "misc"},
+		"brand":  "Acme",
+	})
+
+	var result map[string]interface{}
+	found := false
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		res, ok := trySearchAsTenant(t, r, tenant, uniqueBodyTerm)
+		if ok {
+			result = res
+			if hits, ok := result["hits"].([]interface{}); ok && len(hits) > 0 {
+				found = true
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !found {
+		t.Fatalf("timed out waiting for body-only term %q to become searchable, last result: %v", uniqueBodyTerm, result)
+	}
+
+	hits, ok := result["hits"].([]interface{})
+	if !ok || len(hits) != 1 {
+		t.Fatalf("expected exactly 1 hit for body-only term, got: %v", result)
+	}
+
+	hit, ok := hits[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected hit to be an object, got: %v", hits[0])
+	}
+	if hit["author"] != "Catalog Team" {
+		t.Fatalf("expected author to round-trip, got: %v", hit["author"])
+	}
+	tags, ok := hit["tags"].([]interface{})
+	if !ok || len(tags) != 2 {
+		t.Fatalf("expected tags to round-trip as a 2-element array, got: %v", hit["tags"])
+	}
+
+	// Also confirm the tag itself is independently searchable.
+	var byTag map[string]interface{}
+	foundByTag := false
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		res, ok := trySearchAsTenant(t, r, tenant, uniqueTag)
+		if ok {
+			byTag = res
+			if hits, ok := byTag["hits"].([]interface{}); ok && len(hits) > 0 {
+				foundByTag = true
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !foundByTag {
+		t.Fatalf("timed out waiting for tag %q to become searchable, last result: %v", uniqueTag, byTag)
+	}
+}
+
 // TestInternalSearch_MissingTenantHeader_Returns400 asserts the trust
 // boundary from CONTRACT.md §4: a missing/empty X-Tenant-ID header must be
 // rejected with 400, both for search and for the batch indexing endpoint.

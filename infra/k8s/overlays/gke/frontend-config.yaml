@@ -1,0 +1,10 @@
+# Forces HTTP -> HTTPS redirect on the GCE ingress (GKE-specific CRD,
+# requires the "gce" ingress class used in ingress-patch.yaml).
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: saas-frontend-config
+  namespace: saas
+spec:
+  redirectToHttps:
+    enabled: true

@@ -1,29 +1,40 @@
-# GKE overlay — manifests only. NOT applied/deployed by Agent E; local k3d is
-# the verified deployment target for this submission (see infra/README.md).
-# Before deploying to a real GKE cluster you would additionally want to:
-#   - point `images:` below at your Artifact Registry repo
-#   - use a StorageClass appropriate for GKE (e.g. standard-rwo / premium-rwo)
-#   - move secrets to Secret Manager (CSI driver) instead of plain k8s Secrets.
-#     This overlay intentionally does NOT patch base/secret.yaml, so a `kubectl
-#     apply -k` here would inherit the base's dev-placeholder values — do not
-#     apply this overlay as-is. Supply real secrets out-of-band (Secret
-#     Manager CSI driver, or a `patches:`/`secretGenerator:` entry here that
-#     is never committed) before deploying to any real GKE cluster.
-#   - use a GKE-managed cert + static IP with the "gce" Ingress class
+# Production GKE overlay. Deployed via .github/workflows/deploy-gke.yml,
+# which authenticates via Workload Identity Federation, builds+pushes the
+# three app images to Artifact Registry, points `images:` below at them
+# with `kustomize edit set image`, and runs `kubectl apply -k` here.
+#
+# Before the FIRST real deploy, an operator must also:
+#   1. `terraform apply` infra/terraform/ (creates the cluster, Artifact
+#      Registry repo, deploy service account, and reserves the static IP
+#      referenced by ingress-patch.yaml).
+#   2. Supply a real `saas-secrets` Secret out-of-band (see
+#      infra/k8s/overlays/gke/README.md / secret.example.yaml) — this
+#      overlay deletes the base's dev-placeholder Secret rather than
+#      shipping it, on purpose.
+#   3. Replace the placeholder hostnames in ingress-patch.yaml and
+#      managed-certificate.yaml with real, DNS-controlled domains.
+#
+# `kubectl kustomize infra/k8s/overlays/gke` builds cleanly without any of
+# the above (no live cluster/secrets needed to render the manifests) —
+# they're only required to actually `apply` this overlay successfully.
 
 resources:
   - ../../base
+  - managed-certificate.yaml
+  - frontend-config.yaml
 
 patches:
   - path: ingress-patch.yaml
+  - path: production-patch.yaml
+  - path: secret-delete-patch.yaml
 
-# images:
-#   - name: saas/control-plane
-#     newName: us-central1-docker.pkg.dev/<project>/saas/control-plane
-#     newTag: <tag>
-#   - name: saas/web
-#     newName: us-central1-docker.pkg.dev/<project>/saas/web
-#     newTag: <tag>
-#   - name: saas/search-api
-#     newName: us-central1-docker.pkg.dev/<project>/saas/search-api
-#     newTag: <tag>
+images:
+  - name: saas/web
+    newName: REPLACE_WITH_ARTIFACT_REGISTRY_PATH/web
+    newTag: REPLACE_WITH_GIT_SHA
+  - name: saas/control-plane
+    newName: REPLACE_WITH_ARTIFACT_REGISTRY_PATH/control-plane
+    newTag: REPLACE_WITH_GIT_SHA
+  - name: saas/search-api
+    newName: REPLACE_WITH_ARTIFACT_REGISTRY_PATH/search-api
+    newTag: REPLACE_WITH_GIT_SHA

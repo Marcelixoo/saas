@@ -1,0 +1,14 @@
+# GKE-managed TLS certificate (works only with the GCE Ingress class, i.e.
+# alongside the "gce" ingress.class annotation in ingress-patch.yaml).
+# TODO: replace both domains with your real, DNS-controlled hostnames
+# before applying — GCP issues the cert only after the domains resolve to
+# the ingress's IP. See infra/k8s/overlays/gke/README.md.
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: saas-managed-cert
+  namespace: saas
+spec:
+  domains:
+    - web.YOUR_DOMAIN.example
+    - api.YOUR_DOMAIN.example

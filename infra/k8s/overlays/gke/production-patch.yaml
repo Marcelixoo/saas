@@ -1,0 +1,60 @@
+# Production-appropriate replicas/resources for the stateless services.
+# postgres/redis/meilisearch are left at the base's single-replica
+# StatefulSet/Deployment config (see infra/terraform/README.md for the
+# managed-Postgres/managed-Redis alternative to scaling those in-cluster).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: saas
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: web
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane
+  namespace: saas
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: control-plane
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-api
+  namespace: saas
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: search-api
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi

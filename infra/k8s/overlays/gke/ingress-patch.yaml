@@ -1,8 +1,11 @@
-# Example GKE ingress patch. NOT deployed as part of this submission — GKE
-# credentials/cluster are out of scope for Agent E. Provided so a future GKE
-# rollout has a starting point: swap in a real ManagedCertificate/static IP
-# and your own domain names, and point `images:` in kustomization.yaml at
-# your Artifact Registry (or GCR) repo.
+# Production ingress: GCE Ingress class, a reserved static IP (from
+# infra/terraform, see the ingress_static_ip_name output — defaults to
+# "saas-ingress-ip"), and a GKE-managed cert (managed-certificate.yaml).
+#
+# TODO before applying: replace both host values below (and the domains in
+# managed-certificate.yaml) with your real DNS-controlled hostnames, and
+# point their DNS A records at the static IP reserved by
+# infra/terraform (`terraform output ingress_static_ip_address`).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -10,9 +13,12 @@ metadata:
   namespace: saas
   annotations:
     kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: saas-ingress-ip
+    networking.gke.io/managed-certificates: saas-managed-cert
+    networking.gke.io/v1beta1.FrontendConfig: saas-frontend-config
 spec:
   rules:
-    - host: web.example.com
+    - host: web.YOUR_DOMAIN.example
       http:
         paths:
           - path: /
@@ -22,7 +28,7 @@ spec:
                 name: web
                 port:
                   number: 3000
-    - host: api.example.com
+    - host: api.YOUR_DOMAIN.example
       http:
         paths:
           - path: /

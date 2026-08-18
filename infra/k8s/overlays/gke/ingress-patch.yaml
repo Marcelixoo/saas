@@ -1,0 +1,34 @@
+# Example GKE ingress patch. NOT deployed as part of this submission — GKE
+# credentials/cluster are out of scope for Agent E. Provided so a future GKE
+# rollout has a starting point: swap in a real ManagedCertificate/static IP
+# and your own domain names, and point `images:` in kustomization.yaml at
+# your Artifact Registry (or GCR) repo.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: saas-ingress
+  namespace: saas
+  annotations:
+    kubernetes.io/ingress.class: gce
+spec:
+  rules:
+    - host: web.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3000
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: control-plane
+                port:
+                  number: 8080

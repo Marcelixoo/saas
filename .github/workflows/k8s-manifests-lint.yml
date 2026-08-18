@@ -1,0 +1,38 @@
+name: K8s manifests lint
+
+# Non-blocking sanity check that the Kustomize overlays owned by Agent E
+# (infra/k8s/**) render cleanly. It does NOT deploy anywhere (no cluster
+# credentials are available in CI) — see infra/README.md for the verified
+# local k3d deployment procedure and evidence.
+
+on:
+  pull_request:
+    paths:
+      - "infra/k8s/**"
+      - ".github/workflows/k8s-manifests-lint.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  kustomize-build:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      # `kubectl kustomize` fully renders and YAML-parses every resource with
+      # no cluster required, so a non-zero exit here already catches
+      # malformed Kustomize config, bad patches, or invalid YAML. (A true
+      # `kubectl apply --dry-run=client` also needs live server API
+      # discovery for REST mapping even with --validate=false, so it can't
+      # run without a cluster and isn't used here.)
+      - name: Render local overlay
+        run: kubectl kustomize infra/k8s/overlays/local > /tmp/local.yaml
+
+      - name: Render gke overlay
+        run: kubectl kustomize infra/k8s/overlays/gke > /tmp/gke.yaml

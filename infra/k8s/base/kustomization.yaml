@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: saas
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres.yaml
+  - redis.yaml
+  - meilisearch.yaml
+  - search-api.yaml
+  - control-plane.yaml
+  - web.yaml
+  - ingress.yaml

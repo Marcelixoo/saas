@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: saas-config
+  namespace: saas
+data:
+  # control-plane
+  PORT: "8080"
+  HOST: "0.0.0.0"
+  SEARCH_API_URL: "http://search-api:8081"
+  REDIS_URL: "redis://redis:6379"
+  FREE_SEARCH_LIMIT: "30"
+  PRO_SEARCH_LIMIT: "300"
+  ALLOWED_SIGNUP_EMAILS: "@e2e.test"
+  # search-api
+  SERVER_PORT: "8081"
+  MEILISEARCH_HOST: "http://meilisearch:7700"
+  # meilisearch
+  MEILI_ENV: "development"
+  MEILI_NO_ANALYTICS: "true"
+  # postgres (non-secret)
+  POSTGRES_DB: "saas"

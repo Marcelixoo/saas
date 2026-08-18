@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: saas-ingress
+  namespace: saas
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: web.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3000
+    - host: api.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: control-plane
+                port:
+                  number: 8080

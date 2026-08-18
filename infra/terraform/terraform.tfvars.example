@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars and adjust as needed. No secrets belong in this
+# file — everything below is non-sensitive project/naming configuration.
+
+project_id = "criticalmars-saas"
+region     = "europe-west3"
+
+artifact_registry_repository_id = "saas"
+cluster_name                    = "saas-gke"
+
+deploy_service_account_id = "saas-gke-deployer"
+github_repository         = "Marcelixoo/saas"
+
+workload_identity_pool_id          = "github-actions-pool"
+workload_identity_pool_provider_id = "github-actions-oidc"
+
+reserve_ingress_static_ip = true
+ingress_static_ip_name    = "saas-ingress-ip"

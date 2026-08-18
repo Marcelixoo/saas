@@ -1,0 +1,138 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens — mirrors the Pencil design system (admin-ui.pen) and the
+ * original ui-mock.html reference. Single light theme by design; see
+ * ui-mock.html's "deliberate single light world" comment.
+ */
+:root {
+  --ground: #ffffff;
+  --surface: #f3f6f9;
+  --surface-2: #eaeef2;
+
+  --ink: #000000;
+  --ink-muted: #4b4b4b;
+  --ink-faint: #6c6c6c;
+
+  --line: #000000;
+  --line-soft: #d0d7de;
+
+  --primary: #005fb8;
+  --primary-press: #0f4a85;
+  --primary-tint: #e5eff8;
+  --focus: #0090f1;
+
+  --good: #107c10;
+  --good-tint: #e3f3e3;
+  --warn: #b5820e;
+  --warn-tint: #f7edd6;
+  --crit: #d13438;
+  --crit-tint: #fbe3e4;
+
+  --skeleton: #e4e8ec;
+
+  --chart-p50: #005fb8;
+  --chart-p95: #b5820e;
+  --chart-p99: #d13438;
+  --chart-series-2: #107c10;
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+
+  --color-primary: var(--primary);
+  --color-primary-press: var(--primary-press);
+  --color-primary-tint: var(--primary-tint);
+  --color-focus: var(--focus);
+
+  --color-good: var(--good);
+  --color-good-tint: var(--good-tint);
+  --color-warn: var(--warn);
+  --color-warn-tint: var(--warn-tint);
+  --color-crit: var(--crit);
+  --color-crit-tint: var(--crit-tint);
+
+  --color-skeleton: var(--skeleton);
+
+  --color-chart-p50: var(--chart-p50);
+  --color-chart-p95: var(--chart-p95);
+  --color-chart-p99: var(--chart-p99);
+  --color-chart-series-2: var(--chart-series-2);
+
+  --font-sans: var(--font-ibm-plex-sans), ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --radius-sm: 3px;
+  --radius-lg: 5px;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--surface-2);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes toast-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  .animate-toast-in {
+    animation: toast-in 180ms ease-out;
+  }
+
+  .animate-toast-out {
+    animation: toast-out 150ms ease-in forwards;
+  }
+}

@@ -39,10 +39,12 @@ pod restart). A `infra/k8s/overlays/gke` overlay also exists in the repo but
 is **not deployed** — it is manifests-only, explicitly out of scope for this
 submission, and would need real secret management (see §6) and an
 Artifact-Registry image reference before it could be applied to a real GKE
-cluster. A legacy `terraform/` + Cloud Run GitHub Actions workflow
-(`deploy-gcp.yml`) also exists from an earlier iteration of this project and
-is not the deployment path this threat model or the current topology
-describes; it is called out as a residual risk in §7.
+cluster. An earlier iteration of this project also shipped a `terraform/`
+directory and a Cloud Run GitHub Actions workflow (`deploy-gcp.yml`) for a
+single-service deploy; both were removed once the k3d/Kustomize path became
+the agreed deployment story (see §7) and are superseded by
+`infra/terraform/` (GKE provisioning) and
+`.github/workflows/deploy-gke.yml` (GKE CD pipeline).
 
 Locally, outside k8s, the same services also run via `docker-compose.yml`
 for day-to-day development.
@@ -305,19 +307,19 @@ All of the following are exercised as automated tests today
 - **GKE overlay is unexercised.** `infra/k8s/overlays/gke` exists but has
   never been applied to a real cluster; treat it as a starting point, not a
   validated deployment path.
-- **Legacy Cloud Run / Terraform path.** `terraform/` and
-  `.github/workflows/deploy-gcp.yml` are artifacts of an earlier,
-  single-Go-service iteration of this project. Notably,
-  `deploy-gcp.yml` deploys with `--allow-unauthenticated`, which would be
-  actively wrong for the current architecture if it deployed the Go
-  search-api directly (that service must never be public — see
-  `CONTRACT.md` §1/§4). It relies on `secrets.GCP_SA_KEY`/`GCP_PROJECT_ID`
-  which are not configured for this repo, so it does not currently deploy
-  anything; it is flagged here rather than silently left as dead-looking
-  but latent-dangerous CI config. Recommendation: disable or delete this
-  workflow once the k3d/Kustomize path is the agreed deployment story, to
-  remove the risk of someone re-enabling it by supplying the missing
-  secrets.
+- **Legacy Cloud Run / Terraform path — removed.** `terraform/` and
+  `.github/workflows/deploy-gcp.yml` were artifacts of an earlier,
+  single-Go-service iteration of this project. Notably, `deploy-gcp.yml`
+  deployed with `--allow-unauthenticated`, which would have been actively
+  wrong for the current architecture had it deployed the Go search-api
+  directly (that service must never be public — see `CONTRACT.md` §1/§4).
+  Both were deleted now that the k3d/Kustomize path is the agreed
+  deployment story, removing the risk of someone re-enabling latent-dangerous
+  CI config by supplying the missing `GCP_SA_KEY`/`GCP_PROJECT_ID` secrets.
+  Production GKE provisioning and CD now live in `infra/terraform/` and
+  `.github/workflows/deploy-gke.yml`, which authenticate via Workload
+  Identity Federation (no long-lived service-account keys) and deploy the
+  full multi-service topology, not a single public Go service.
 - **No WAF / service mesh / external IdP**, by design — out of scope for
   this project's size and threat profile (see also §8).
 - **Redis rate limiting fails closed but not gracefully.** A Redis outage

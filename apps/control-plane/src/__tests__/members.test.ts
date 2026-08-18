@@ -27,7 +27,7 @@ describe('members', () => {
   }
 
   it('lists members of an organization', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug } = await createOrg(owner.token);
 
     const res = await ctx.app.inject({
@@ -39,100 +39,100 @@ describe('members', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.members).toHaveLength(1);
-    expect(body.members[0]).toMatchObject({ email: 'owner@e2e.test', role: 'OWNER' });
+    expect(body.members[0]).toMatchObject({ email: 'owner@allowed-domain.test', role: 'OWNER' });
   });
 
   it('invites an existing user as MEMBER', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug } = await createOrg(owner.token);
-    await registerAndLogin(ctx, 'invitee@e2e.test');
+    await registerAndLogin(ctx, 'invitee@allowed-domain.test');
 
     const res = await ctx.app.inject({
       method: 'POST',
       url: `/organizations/${slug}/members`,
       headers: { authorization: `Bearer ${owner.token}` },
-      payload: { email: 'invitee@e2e.test', role: 'MEMBER' },
+      payload: { email: 'invitee@allowed-domain.test', role: 'MEMBER' },
     });
 
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
-    expect(body.member).toMatchObject({ email: 'invitee@e2e.test', role: 'MEMBER' });
+    expect(body.member).toMatchObject({ email: 'invitee@allowed-domain.test', role: 'MEMBER' });
   });
 
   it('rejects inviting a member as OWNER', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug } = await createOrg(owner.token);
-    await registerAndLogin(ctx, 'invitee@e2e.test');
+    await registerAndLogin(ctx, 'invitee@allowed-domain.test');
 
     const res = await ctx.app.inject({
       method: 'POST',
       url: `/organizations/${slug}/members`,
       headers: { authorization: `Bearer ${owner.token}` },
-      payload: { email: 'invitee@e2e.test', role: 'OWNER' },
+      payload: { email: 'invitee@allowed-domain.test', role: 'OWNER' },
     });
 
     expect(res.statusCode).toBe(400);
   });
 
   it('rejects inviting an email that has no registered user', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug } = await createOrg(owner.token);
 
     const res = await ctx.app.inject({
       method: 'POST',
       url: `/organizations/${slug}/members`,
       headers: { authorization: `Bearer ${owner.token}` },
-      payload: { email: 'nobody@e2e.test', role: 'MEMBER' },
+      payload: { email: 'nobody@allowed-domain.test', role: 'MEMBER' },
     });
 
     expect(res.statusCode).toBe(404);
   });
 
   it('rejects inviting a user who is already a member', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug } = await createOrg(owner.token);
-    await registerAndLogin(ctx, 'invitee@e2e.test');
+    await registerAndLogin(ctx, 'invitee@allowed-domain.test');
 
     await ctx.app.inject({
       method: 'POST',
       url: `/organizations/${slug}/members`,
       headers: { authorization: `Bearer ${owner.token}` },
-      payload: { email: 'invitee@e2e.test', role: 'MEMBER' },
+      payload: { email: 'invitee@allowed-domain.test', role: 'MEMBER' },
     });
 
     const res = await ctx.app.inject({
       method: 'POST',
       url: `/organizations/${slug}/members`,
       headers: { authorization: `Bearer ${owner.token}` },
-      payload: { email: 'invitee@e2e.test', role: 'MEMBER' },
+      payload: { email: 'invitee@allowed-domain.test', role: 'MEMBER' },
     });
 
     expect(res.statusCode).toBe(409);
   });
 
   it('forbids a MEMBER from inviting others', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug, id: organizationId } = await createOrg(owner.token);
-    const member = await registerAndLogin(ctx, 'member@e2e.test');
+    const member = await registerAndLogin(ctx, 'member@allowed-domain.test');
     await ctx.prisma.membership.create({
       data: { userId: member.userId, organizationId, role: 'MEMBER' },
     });
-    await registerAndLogin(ctx, 'invitee@e2e.test');
+    await registerAndLogin(ctx, 'invitee@allowed-domain.test');
 
     const res = await ctx.app.inject({
       method: 'POST',
       url: `/organizations/${slug}/members`,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { email: 'invitee@e2e.test', role: 'MEMBER' },
+      payload: { email: 'invitee@allowed-domain.test', role: 'MEMBER' },
     });
 
     expect(res.statusCode).toBe(403);
   });
 
   it('removes a member', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug, id: organizationId } = await createOrg(owner.token);
-    const member = await registerAndLogin(ctx, 'member@e2e.test');
+    const member = await registerAndLogin(ctx, 'member@allowed-domain.test');
     await ctx.prisma.membership.create({
       data: { userId: member.userId, organizationId, role: 'MEMBER' },
     });
@@ -147,7 +147,7 @@ describe('members', () => {
   });
 
   it('cannot remove the last remaining owner', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug, id: organizationId } = await createOrg(owner.token);
     void organizationId;
 
@@ -161,7 +161,7 @@ describe('members', () => {
   });
 
   it('renames an organization', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug } = await createOrg(owner.token);
 
     const res = await ctx.app.inject({
@@ -178,9 +178,9 @@ describe('members', () => {
   });
 
   it('forbids non-OWNER/ADMIN from renaming an organization', async () => {
-    const owner = await registerAndLogin(ctx, 'owner@e2e.test');
+    const owner = await registerAndLogin(ctx, 'owner@allowed-domain.test');
     const { slug, id: organizationId } = await createOrg(owner.token);
-    const member = await registerAndLogin(ctx, 'member@e2e.test');
+    const member = await registerAndLogin(ctx, 'member@allowed-domain.test');
     await ctx.prisma.membership.create({
       data: { userId: member.userId, organizationId, role: 'MEMBER' },
     });

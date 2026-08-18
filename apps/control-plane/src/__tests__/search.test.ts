@@ -43,6 +43,62 @@ describe('search + usage + tenant trust', () => {
     expect(body.total).toBe(1);
   });
 
+  it('forwards filter, sort, limit, offset, and facets to the search client', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const org = await createOrg(ctx, token);
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${org.slug}/search?q=nike&filter=${encodeURIComponent(
+        'category = "shoes"',
+      )}&sort=price:asc,title:asc&limit=5&offset=10&facets=category,brand`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(ctx.searchClient.calls.search).toHaveLength(1);
+    const call = ctx.searchClient.calls.search[0];
+    expect(call.query).toBe('nike');
+    expect(call.opts).toEqual({
+      filter: 'category = "shoes"',
+      sort: ['price:asc', 'title:asc'],
+      limit: 5,
+      offset: 10,
+      facets: ['category', 'brand'],
+    });
+  });
+
+  it('searches with only "q" and leaves the optional params undefined', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const org = await createOrg(ctx, token);
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${org.slug}/search?q=nike`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const call = ctx.searchClient.calls.search[0];
+    expect(call.opts).toEqual({
+      filter: undefined,
+      sort: undefined,
+      limit: undefined,
+      offset: undefined,
+      facets: undefined,
+    });
+  });
+
+  it('rejects a search request missing the required "q" parameter', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const org = await createOrg(ctx, token);
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${org.slug}/search`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('ignores an inbound X-Tenant-ID header and forwards the trusted resolved org UUID to the Go client', async () => {
     const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
     const org = await createOrg(ctx, token);

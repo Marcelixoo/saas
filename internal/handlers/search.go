@@ -14,6 +14,7 @@ type SearchQueryParams struct {
 	Offset int    `form:"offset" default:"0"`
 	Filter string `form:"filter" default:""`
 	Sort   string `form:"sort" default:"title:asc"`
+	Facets string `form:"facets" default:""`
 }
 
 func SearchArticles(engine search.SearchEngine) gin.HandlerFunc {

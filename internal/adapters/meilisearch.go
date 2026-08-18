@@ -6,6 +6,7 @@ import (
 	"mini-search-platform/internal/models"
 	"mini-search-platform/internal/search"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/meilisearch/meilisearch-go"
@@ -254,18 +255,25 @@ func (e *MeilisearchEngine) SearchTenant(tenantID string, query string, options 
 	indexName := search.TenantIndexName(tenantID)
 	idx := Client.Index(indexName)
 
-	result, err := idx.Search(query, &meilisearch.SearchRequest{
+	req := &meilisearch.SearchRequest{
 		Limit:  int64(options.Limit),
 		Offset: int64(options.Offset),
 		Filter: options.Filter,
 		Sort:   options.Sort,
-	})
+	}
+	if options.Facets != "" {
+		req.Facets = splitAndTrim(options.Facets)
+	}
+
+	result, err := idx.Search(query, req)
 	if err != nil {
 		if isIndexNotFound(err) {
 			return search.TenantSearchResponse{
-				Query: query,
-				Hits:  []search.TenantDocument{},
-				Total: 0,
+				Query:  query,
+				Hits:   []search.TenantDocument{},
+				Total:  0,
+				Limit:  options.Limit,
+				Offset: options.Offset,
 			}, nil
 		}
 		return search.TenantSearchResponse{Query: query}, err
@@ -285,8 +293,45 @@ func (e *MeilisearchEngine) SearchTenant(tenantID string, query string, options 
 	}
 
 	return search.TenantSearchResponse{
-		Query: result.Query,
-		Hits:  hits,
-		Total: int(result.EstimatedTotalHits),
+		Query:             result.Query,
+		Hits:              hits,
+		Total:             int(result.EstimatedTotalHits),
+		FacetDistribution: convertFacetDistribution(result.FacetDistribution),
+		Limit:             int(result.Limit),
+		Offset:            int(result.Offset),
 	}, nil
+}
+
+// splitAndTrim splits a comma-separated list (e.g. the `facets` query param)
+// into a trimmed, non-empty slice of fields.
+func splitAndTrim(csv string) []string {
+	parts := strings.Split(csv, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// convertFacetDistribution decodes Meilisearch's raw facet distribution JSON
+// (field -> value -> count) into the strongly-typed
+// map[string]map[string]int used in TenantSearchResponse. Returns nil when
+// there is nothing to report, so the `omitempty` JSON tag hides the field
+// entirely (facets weren't requested).
+func convertFacetDistribution(raw json.RawMessage) map[string]map[string]int {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var out map[string]map[string]int
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

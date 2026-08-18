@@ -21,11 +21,15 @@ type SearchEngine interface {
 type TenantDocument = map[string]interface{}
 
 // TenantSearchResponse mirrors CONTRACT.md §3's search response shape:
-// { "query", "hits", "total" }.
+// { "query", "hits", "total" } plus, when facets were requested,
+// `facetDistribution`, and the effective `limit`/`offset` used for paging.
 type TenantSearchResponse struct {
-	Query string           `json:"query"`
-	Hits  []TenantDocument `json:"hits"`
-	Total int              `json:"total"`
+	Query             string                    `json:"query"`
+	Hits              []TenantDocument          `json:"hits"`
+	Total             int                       `json:"total"`
+	FacetDistribution map[string]map[string]int `json:"facetDistribution,omitempty"`
+	Limit             int                       `json:"limit"`
+	Offset            int                       `json:"offset"`
 }
 
 // TenantSearchEngine is implemented by search engines that support

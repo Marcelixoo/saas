@@ -9,7 +9,10 @@ export interface TestContext {
   prisma: PrismaClient;
   redis: Redis;
   searchClient: SearchApiClient & {
-    calls: { search: Array<{ tenantId: string; query: string }>; index: Array<{ tenantId: string; documents: unknown[] }> };
+    calls: {
+      search: Array<{ tenantId: string; query: string; opts?: import('../lib/searchClient').SearchOptions }>;
+      index: Array<{ tenantId: string; documents: unknown[] }>;
+    };
   };
 }
 
@@ -17,8 +20,8 @@ export function createFakeSearchClient(): TestContext['searchClient'] {
   const calls: TestContext['searchClient']['calls'] = { search: [], index: [] };
   return {
     calls,
-    async search(tenantId, query) {
-      calls.search.push({ tenantId, query });
+    async search(tenantId, query, opts) {
+      calls.search.push({ tenantId, query, opts });
       return { query, hits: [{ id: 'sku-1', title: 'Red Nike Shoe' }], total: 1 };
     },
     async indexBatch(tenantId, documents) {

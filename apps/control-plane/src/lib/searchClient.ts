@@ -12,6 +12,19 @@ export interface SearchResponse {
   query: string;
   hits: SearchHit[];
   total: number;
+  /** Present only when `facets` were requested. */
+  facetDistribution?: Record<string, Record<string, number>>;
+  limit?: number;
+  offset?: number;
+}
+
+/** Optional forwarded search params (CONTRACT.md §3/§4). */
+export interface SearchOptions {
+  filter?: string;
+  sort?: string[];
+  limit?: number;
+  offset?: number;
+  facets?: string[];
 }
 
 export interface BatchDocument {
@@ -28,7 +41,7 @@ export interface BatchDocument {
 }
 
 export interface SearchApiClient {
-  search(tenantId: string, query: string): Promise<SearchResponse>;
+  search(tenantId: string, query: string, opts?: SearchOptions): Promise<SearchResponse>;
   indexBatch(tenantId: string, documents: BatchDocument[]): Promise<{ accepted: number }>;
 }
 
@@ -46,10 +59,18 @@ async function toApiError(statusCode: number, body: string): Promise<never> {
  */
 export function createSearchApiClient(baseUrl: string = config.searchApiUrl): SearchApiClient {
   return {
-    async search(tenantId: string, query: string): Promise<SearchResponse> {
+    async search(tenantId: string, query: string, opts?: SearchOptions): Promise<SearchResponse> {
+      const qs = new URLSearchParams();
+      qs.set('q', query);
+      if (opts?.filter) qs.set('filter', opts.filter);
+      if (opts?.sort && opts.sort.length > 0) qs.set('sort', opts.sort.join(','));
+      if (typeof opts?.limit === 'number') qs.set('limit', String(opts.limit));
+      if (typeof opts?.offset === 'number') qs.set('offset', String(opts.offset));
+      if (opts?.facets && opts.facets.length > 0) qs.set('facets', opts.facets.join(','));
+
       let res;
       try {
-        res = await request(`${baseUrl}/internal/search?q=${encodeURIComponent(query)}`, {
+        res = await request(`${baseUrl}/internal/search?${qs.toString()}`, {
           method: 'GET',
           headers: { 'X-Tenant-ID': tenantId },
         });

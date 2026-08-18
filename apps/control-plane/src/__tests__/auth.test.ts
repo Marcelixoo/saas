@@ -117,4 +117,37 @@ describe('auth', () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).email).toBe('allowed@e2e.test');
   });
+
+  it('issues tokens with an expiry (exp) claim so leaked tokens are not valid forever', async () => {
+    const registerRes = await ctx.app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: { email: 'allowed@e2e.test', password: 'password123', name: 'Allowed User' },
+    });
+    const { token } = JSON.parse(registerRes.body);
+    const [, payloadB64] = token.split('.');
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString('utf8'));
+    expect(payload.exp).toBeTypeOf('number');
+    expect(payload.exp).toBeGreaterThan(payload.iat);
+  });
+
+  it('rejects an expired JWT with 401', async () => {
+    const registerRes = await ctx.app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: { email: 'allowed@e2e.test', password: 'password123', name: 'Allowed User' },
+    });
+    const { user } = JSON.parse(registerRes.body);
+    // 1ms expiry, then wait so the token is unambiguously in the past.
+    const expiredToken = ctx.app.jwt.sign({ sub: user.id, email: user.email }, { expiresIn: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/me',
+      headers: { authorization: `Bearer ${expiredToken}` },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.body).error.code).toBe('UNAUTHENTICATED');
+  });
 });

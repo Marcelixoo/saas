@@ -5,6 +5,7 @@ import (
 
 	"mini-search-platform/internal/search"
 	"mini-search-platform/pkg/errors"
+	"mini-search-platform/pkg/logging"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mcuadros/go-defaults"
@@ -23,6 +24,11 @@ func requireTenantID(c *gin.Context) (tenantID string, ok bool) {
 		errors.Handle(c, errors.Validation("X-Tenant-ID header is required"))
 		return "", false
 	}
+	// Attach the validated tenant ID to the request context so the
+	// per-request log line (pkg/logging.RequestLogger) is labeled with it —
+	// this is the data source for the per-tenant latency/error-rate SLIs
+	// described in docs/observability.md.
+	logging.SetTenantID(c, tenantID)
 	return tenantID, true
 }
 

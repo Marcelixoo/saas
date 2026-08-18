@@ -47,6 +47,14 @@ func RequestLogger() gin.HandlerFunc {
 				slog.String("remoteIp", c.ClientIP()),
 				slog.String("latency", duration.String()),
 			),
+			// latency_ms is kept as a top-level numeric field (in addition to
+			// the human-readable httpRequest.latency string above) so a Cloud
+			// Logging log-based metric can extract it as a distribution value
+			// directly via jsonPayload.latency_ms, without parsing a Go
+			// duration string. Combined with tenant_id below, this is the
+			// minimal signal needed to build a per-tenant latency SLI — see
+			// docs/observability.md ("Per-tenant SLAs").
+			slog.Int64("latency_ms", duration.Milliseconds()),
 		}
 
 		if userID := GetUserID(c); userID != "" {

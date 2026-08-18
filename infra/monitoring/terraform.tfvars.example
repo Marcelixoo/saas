@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars (gitignored) and fill in before `terraform plan`.
+
+project_id         = "criticalmars-saas-505914"
+region             = "europe-west3"
+cluster_name       = "saas-gke"
+namespace          = "saas"
+notification_email = "you@example.com"

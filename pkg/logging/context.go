@@ -62,6 +62,15 @@ func GetUserID(c *gin.Context) string {
 	return ""
 }
 
+// SetTenantID stores the trusted tenant ID in the context so RequestLogger
+// (see middleware.go) attaches it to the per-request structured log line.
+// Call this once the tenant identifier has been resolved/validated (e.g.
+// requireTenantID in internal_search.go) — never from an unvalidated
+// external header.
+func SetTenantID(c *gin.Context, tenantID string) {
+	c.Set(string(contextKeyTenantID), tenantID)
+}
+
 // GetTenantID retrieves the tenant ID from the context (if set by auth middleware)
 func GetTenantID(c *gin.Context) string {
 	if tenantID, exists := c.Get("tenant_id"); exists {

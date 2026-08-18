@@ -196,8 +196,9 @@ jobs:
           # Wait for each Deployment to become healthy. Because every
           # Deployment has readiness probes and the default RollingUpdate
           # strategy, a broken new pod never becomes Ready, so old pods keep
-          # serving (no downtime) and `rollout status` times out instead of
-          # reporting success. On timeout we automatically roll the
+          # serving (no downtime) and `rollout status` fails — a timeout, or
+          # another non-zero exit such as a progress-deadline breach — instead
+          # of reporting success. On any such failure we automatically roll the
           # Deployment back to its previous ReplicaSet, confirm that
           # last-good revision is healthy, and then fail the job so the bad
           # release is surfaced — leaving the cluster on the last-good state
@@ -234,7 +235,7 @@ jobs:
                 echo "::error::$d rollback did not become healthy — manual intervention required"
               fi
             else
-              echo "::error::$d has no previous revision to roll back to — manual intervention required"
+              echo "::error::$d rollback command failed (no previous revision, or another kubectl error printed above) — manual intervention required"
             fi
             failed="${failed} $d"
           done

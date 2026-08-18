@@ -191,8 +191,55 @@ jobs:
       - name: Deploy
         run: kubectl apply -k infra/k8s/overlays/gke
 
-      - name: Wait for rollout
+      - name: Wait for rollout (auto-rollback on failure)
         run: |
-          kubectl -n saas rollout status deployment/web --timeout=300s
-          kubectl -n saas rollout status deployment/control-plane --timeout=300s
-          kubectl -n saas rollout status deployment/search-api --timeout=300s
+          # Wait for each Deployment to become healthy. Because every
+          # Deployment has readiness probes and the default RollingUpdate
+          # strategy, a broken new pod never becomes Ready, so old pods keep
+          # serving (no downtime) and `rollout status` times out instead of
+          # reporting success. On timeout we automatically roll the
+          # Deployment back to its previous ReplicaSet, confirm that
+          # last-good revision is healthy, and then fail the job so the bad
+          # release is surfaced — leaving the cluster on the last-good state
+          # rather than a stuck half-rolled-out one.
+          #
+          # Scope/caveats (intentional for this in-pipeline rollback):
+          #   * `rollout undo` reverts a Deployment's pod template (image +
+          #     env template) only. ConfigMap/Secret changes applied by
+          #     `kubectl apply -k` are NOT reverted; an image-only deploy —
+          #     the common case — rolls back cleanly.
+          #   * Forward DB migrations (control-plane runs `prisma migrate
+          #     deploy` on start) are not reverted. Keep migrations additive
+          #     / backward-compatible so the previous image runs against a
+          #     migrated schema.
+          set -uo pipefail
+          deployments=(web control-plane search-api)
+          failed=""
+          for d in "${deployments[@]}"; do
+            echo "::group::rollout status: $d"
+            if kubectl -n saas rollout status "deployment/$d" --timeout=300s; then
+              echo "$d: healthy"
+              echo "::endgroup::"
+              continue
+            fi
+            echo "::endgroup::"
+            echo "::error::$d failed to roll out; attempting automatic rollback"
+            # Diagnostics (no app logs — avoids leaking secrets into CI output):
+            kubectl -n saas describe "deployment/$d" | tail -n 40 || true
+            kubectl -n saas get pods -l "app=$d" -o wide || true
+            if kubectl -n saas rollout undo "deployment/$d"; then
+              if kubectl -n saas rollout status "deployment/$d" --timeout=180s; then
+                echo "::warning::$d rolled back to previous revision (now healthy)"
+              else
+                echo "::error::$d rollback did not become healthy — manual intervention required"
+              fi
+            else
+              echo "::error::$d has no previous revision to roll back to — manual intervention required"
+            fi
+            failed="${failed} $d"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Deploy failed and was rolled back for:${failed}"
+            exit 1
+          fi
+          echo "All deployments rolled out successfully."

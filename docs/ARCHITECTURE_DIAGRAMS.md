@@ -1,303 +1,133 @@
-# Multi-Tenant Search SaaS Platform - Architecture Diagrams
+# Multi-Tenant Search SaaS — Architecture
 
-## 1. GKE Runtime Architecture
-
-```mermaid
-flowchart TB
-    subgraph DNS["DNS"]
-        WebDNS["web.criticalmars.me A record"]
-        ApiDNS["api.criticalmars.me A record"]
-    end
-
-    StaticIP["GCE Global Static IP<br/>saas-ingress-ip<br/>136.68.233.26"]
-
-    subgraph GKE["GKE Autopilot Cluster: saas-gke (europe-west3), namespace: saas"]
-        Ingress["Ingress: saas-ingress<br/>class: gce"]
-        Cert["ManagedCertificate<br/>saas-managed-cert (Active)"]
-        Frontend["FrontendConfig<br/>saas-frontend-config<br/>HTTP to HTTPS redirect"]
-
-        subgraph Exposed["Exposed Services"]
-            WebSvc["Service: web<br/>Next.js Admin UI, port 3000"]
-            CpSvc["Service: control-plane<br/>Fastify/Node, port 8080"]
-        end
-
-        subgraph Internal["Internal-only Services (ClusterIP, not on Ingress)"]
-            SearchSvc["Service: search-api<br/>Go/Gin, port 8081"]
-            PgSvc["Service: postgres<br/>StatefulSet, port 5432"]
-            RedisSvc["Service: redis<br/>port 6379"]
-            MsSvc["Service: meilisearch<br/>StatefulSet, port 7700"]
-        end
-    end
-
-    WebDNS --> StaticIP
-    ApiDNS --> StaticIP
-    StaticIP --> Ingress
-    Ingress -.-> Cert
-    Ingress -.-> Frontend
-    Ingress -->|host: web.criticalmars.me| WebSvc
-    Ingress -->|host: api.criticalmars.me| CpSvc
-
-    CpSvc --> PgSvc
-    CpSvc --> RedisSvc
-    CpSvc --> SearchSvc
-    SearchSvc --> MsSvc
-
-    classDef boundary stroke:#cc3333,stroke-width:2px,stroke-dasharray: 4 2;
-    class Internal boundary
-```
-
-Trust boundary: only `web` and `control-plane` are reachable through the Ingress. `search-api`, `postgres`, `redis`, and `meilisearch` are internal `ClusterIP` services with no external route.
-
-## 2. CI/CD Pipeline (deploy-gke.yml)
-
-```mermaid
-flowchart LR
-    Trigger["Trigger:<br/>push to main, tag v*,<br/>or workflow_dispatch"]
-    Gate{"check-config gate<br/>all 7 repo variables set?"}
-    Skip["Deploy skipped"]
-
-    Checkout["Checkout code"]
-    WIF["Authenticate via<br/>Workload Identity Federation"]
-    BuildWeb["Build & push web image"]
-    BuildCp["Build & push control-plane image"]
-    BuildSearch["Build & push search-api image"]
-    AR["Google Artifact Registry<br/>europe-west3-docker.pkg.dev/criticalmars-saas-505914/saas<br/>tagged with commit SHA"]
-    Kustomize["kustomize edit set image"]
-    Creds["Get GKE credentials"]
-    SecretSync["Sync saas-secrets from<br/>GCP Secret Manager"]
-    Apply["kubectl apply -k<br/>infra/k8s/overlays/gke"]
-    Rollout{"Wait for rollout<br/>healthy?"}
-    Success["Deployment complete"]
-    Rollback["kubectl rollout undo<br/>to last-good revision"]
-    RecheckHealth["Re-check health"]
-    Fail["Build marked failed<br/>cluster left on last-good state"]
-
-    Trigger --> Gate
-    Gate -->|missing variables| Skip
-    Gate -->|ok| Checkout
-    Checkout --> WIF
-    WIF --> BuildWeb --> AR
-    WIF --> BuildCp --> AR
-    WIF --> BuildSearch --> AR
-    AR --> Kustomize
-    Kustomize --> Creds
-    Creds --> SecretSync
-    SecretSync --> Apply
-    Apply --> Rollout
-    Rollout -->|yes| Success
-    Rollout -->|no| Rollback
-    Rollback --> RecheckHealth
-    RecheckHealth --> Fail
-```
-
-Note: `rollout undo` reverts only the pod template, not ConfigMaps or Secrets, and forward database migrations are not reverted.
-
-## 3. Deploy Sequence Diagram
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant GH as GitHub
-    participant GA as GitHub Actions
-    participant WIF as Workload Identity Federation
-    participant AR as Artifact Registry
-    participant GKE as GKE Cluster (saas-gke)
-
-    Dev->>GH: git push origin main (or tag v*)
-    GH->>GA: Trigger deploy-gke.yml
-
-    GA->>GA: check-config gate (7 required variables)
-
-    Note over GA,WIF: Auth Phase
-    GA->>WIF: Exchange OIDC token for short-lived credentials
-    WIF-->>GA: Access token (no long-lived SA key)
-
-    Note over GA,AR: Build Phase
-    GA->>GA: Build web, control-plane, search-api images
-    GA->>AR: Push 3 images tagged with commit SHA
-
-    Note over GA,GKE: Deploy Phase
-    GA->>GA: kustomize edit set image
-    GA->>GKE: Get cluster credentials
-    GA->>GKE: Sync saas-secrets from Secret Manager
-    GA->>GKE: kubectl apply -k infra/k8s/overlays/gke
-
-    Note over GA,GKE: Verify Phase
-    GA->>GKE: Wait for rollout status
-
-    alt Rollout healthy
-        GKE-->>GA: Rollout succeeded
-        GA->>Dev: Deployment successful
-    else Rollout unhealthy
-        GA->>GKE: kubectl rollout undo (last-good revision)
-        GKE-->>GA: Reverted pod template
-        GA->>GKE: Re-check health
-        GA->>Dev: Deployment failed, cluster on last-good state
-    end
-```
-
-## 4. Request / Data Flow (Multi-Tenant)
-
-```mermaid
-flowchart TD
-    Browser["Browser (Admin UI)"]
-    ApiClient["API Client"]
-
-    Ingress["GCE Ingress<br/>saas-ingress"]
-
-    Web["web (Next.js)"]
-    CP["control-plane (Fastify/Node)<br/>JWT auth"]
-
-    Postgres["postgres (Prisma ORM)"]
-    Redis["redis<br/>rate limiting / usage"]
-    SearchApi["search-api (Go/Gin)<br/>/internal/* not exposed via Ingress"]
-    Meili["meilisearch<br/>per-tenant index:<br/>tenant_<normalized-uuid>_articles"]
-
-    Browser -->|web.criticalmars.me| Ingress
-    ApiClient -->|api.criticalmars.me| Ingress
-    Ingress --> Web
-    Ingress --> CP
-
-    CP --> Postgres
-    CP --> Redis
-    CP -->|"trusted X-Tenant-ID header<br/>(injected by control-plane, never client-supplied)"| SearchApi
-    SearchApi --> Meili
-
-    classDef trust stroke:#cc3333,stroke-width:2px;
-    class SearchApi,Meili trust
-```
-
-The tenant id is never chosen by an external client. `control-plane` authenticates the caller via JWT and injects a trusted `X-Tenant-ID` header on every internal call to `search-api`, which in turn scopes each request to that tenant's own Meilisearch index.
-
-## 5. Infrastructure / IaC Map
-
-```mermaid
-flowchart LR
-    subgraph Terraform["Provisioned by Terraform (infra/terraform, applied manually with ADC)"]
-        TfCluster["GKE Autopilot cluster"]
-        TfAR["Artifact Registry repository"]
-        TfWIF["Workload Identity Federation<br/>pool + provider scoped to Marcelixoo/saas"]
-        TfSA["Least-privilege deployer<br/>service account"]
-        TfIP["Global static IP"]
-        TfSecrets["Secret Manager secrets<br/>(random_password values)<br/>per-secret secretAccessor role"]
-    end
-
-    subgraph CD["Deployed by CI/CD (deploy-gke.yml)"]
-        CdImages["Container images<br/>(web, control-plane, search-api)"]
-        CdManifests["Kubernetes manifests<br/>infra/k8s/overlays/gke (Kustomize)"]
-        CdSecretSync["saas-secrets K8s Secret<br/>(materialized from Secret Manager)"]
-    end
-
-    TfCluster -.->|hosts| CdManifests
-    TfAR -.->|stores| CdImages
-    TfWIF -.->|authenticates| CD
-    TfSecrets -.->|source of truth for| CdSecretSync
-    TfIP -.->|bound to| CdManifests
-```
-
-Terraform state is local and git-ignored; it is applied manually, not via the deploy pipeline. Local development uses docker-compose / k3d with the `infra/k8s/overlays/local` Kustomize overlay.
-
-## 6. Security Architecture
-
-```mermaid
-flowchart TD
-    subgraph EdgeSecurity["Edge Security"]
-        TLS["Google-managed TLS certificate<br/>saas-managed-cert"]
-        Redirect["FrontendConfig:<br/>HTTP to HTTPS redirect"]
-    end
-
-    subgraph AppSecurity["Application Security"]
-        JWT["JWT authentication<br/>(control-plane)"]
-        RBAC["Role-based access control"]
-        RateLimit["Rate limiting<br/>(redis-backed usage tracking)"]
-        TenantHeader["Trusted X-Tenant-ID injection<br/>(never client-supplied)"]
-    end
-
-    subgraph NetworkSecurity["Network Isolation"]
-        ClusterIP["ClusterIP-only services:<br/>postgres, redis, search-api, meilisearch<br/>(not reachable via Ingress)"]
-        InternalRoutes["search-api /internal/* routes<br/>unreachable from outside cluster"]
-    end
-
-    subgraph IdentitySecurity["Identity & Secrets"]
-        WIFSec["Workload Identity Federation<br/>(no long-lived SA keys in CI)"]
-        LeastPriv["Least-privilege deployer<br/>service account"]
-        SecretMgr["GCP Secret Manager<br/>source of truth for credentials"]
-        K8sSecret["saas-secrets K8s Secret<br/>consumed via secretKeyRef"]
-    end
-
-    TLS --> Redirect
-    Redirect --> JWT
-    JWT --> RBAC
-    RBAC --> RateLimit
-    RateLimit --> TenantHeader
-    TenantHeader --> ClusterIP
-    ClusterIP --> InternalRoutes
-
-    WIFSec --> LeastPriv
-    LeastPriv --> SecretMgr
-    SecretMgr --> K8sSecret
-    K8sSecret -.->|secretKeyRef| AppSecurity
-```
+The platform runs in production on **GKE Autopilot** (`saas-gke`, region `europe-west3`,
+namespace `saas`) and is live at **https://web.criticalmars.me** (Admin UI) and
+**https://api.criticalmars.me** (control plane). Local development and the automated
+acceptance suite run the same services on docker-compose / k3d.
 
 ---
 
-## Diagram Descriptions
+## Runtime architecture
 
-### 1. GKE Runtime Architecture
-- **Purpose**: Shows the live GKE Autopilot cluster topology, from DNS and the static IP through the Ingress to exposed and internal services.
-- **Key Components**: `saas-ingress` (GCE class), Google-managed certificate, FrontendConfig redirect, `web` and `control-plane` Deployments, internal `postgres`/`redis`/`meilisearch`/`search-api`.
-- **Highlights**: The trust boundary — only `web` and `control-plane` are Ingress-routed; everything else is `ClusterIP`-only.
+![Runtime topology: the browser reaches the GCE Ingress over HTTPS; the Ingress routes web.criticalmars.me to the Next.js web service and api.criticalmars.me to the Fastify control-plane. The control-plane calls the internal search-api (passing a trusted X-Tenant-ID), PostgreSQL via Prisma, and Redis; the search-api queries Meilisearch. The search-api, PostgreSQL, Redis and Meilisearch sit inside a trust boundary as ClusterIP-only services with no external route.](img/architecture-runtime.png)
 
-### 2. CI/CD Pipeline
-- **Purpose**: Illustrates `deploy-gke.yml`, the workflow that builds and deploys all three services to GKE.
-- **Key Stages**: Config gate, WIF auth, multi-image build/push to Artifact Registry, manifest apply, rollout verification.
-- **Highlights**: Automatic rollback via `kubectl rollout undo` on a failed rollout, leaving the cluster on its last-good state.
+**Request path.** The browser loads the Admin UI from `web.criticalmars.me` and calls the
+control plane at `api.criticalmars.me`. Both hostnames resolve (A records) to the reserved
+global static IP **`136.68.233.26`**, fronted by a **GCE Ingress** that terminates a
+Google-managed TLS certificate and redirects HTTP→HTTPS.
 
-### 3. Deploy Sequence Diagram
-- **Purpose**: Sequence diagram of a single deploy from push to rollout outcome.
-- **Key Interactions**: GitHub Actions to Workload Identity Federation to Artifact Registry to GKE.
-- **Highlights**: Short-lived WIF credentials (no service-account key), the success/failure branch, and auto-rollback.
+**Components.**
 
-### 4. Request / Data Flow
-- **Purpose**: Shows how a request travels from a client to the internal data stores in a multi-tenant context.
-- **Key Layers**: Ingress to `web`/`control-plane` to `postgres`/`redis`/`search-api` to `meilisearch`.
-- **Highlights**: Trusted `X-Tenant-ID` header injection by `control-plane` and per-tenant Meilisearch indexes.
+| Service | Tech | Port | Exposed by Ingress? | Role |
+|---|---|---|---|---|
+| `web` | Next.js Admin UI | 3000 | **Yes** — `web.criticalmars.me` | Operator/admin console (2 replicas) |
+| `control-plane` | Fastify (Node) | 8080 | **Yes** — `api.criticalmars.me` | Public API: auth (JWT + RBAC), org/tenant management, rate limiting, usage, search proxy (2 replicas) |
+| `search-api` | Go / Gin | 8081 | No — ClusterIP | Tenant-scoped search execution (2 replicas) |
+| `postgres` | PostgreSQL (StatefulSet) | 5432 | No — ClusterIP | Users, orgs, memberships, usage events |
+| `redis` | Redis | 6379 | No — ClusterIP | Rate-limit counters and usage tracking |
+| `meilisearch` | Meilisearch (StatefulSet) | 7700 | No — ClusterIP | Full-text/relevance index |
 
-### 5. Infrastructure / IaC Map
-- **Purpose**: Distinguishes what Terraform provisions (cluster, registry, WIF, static IP, secrets) from what the CI/CD pipeline deploys (images, manifests, synced secrets).
-- **Key Aspects**: Terraform state is local and applied manually; CI/CD never touches infrastructure, only application deployment.
+**Trust boundary (multi-tenancy).** Only `web` and `control-plane` are bound to the Ingress;
+`search-api`, `postgres`, `redis`, and `meilisearch` are `ClusterIP` services with **no
+external route**. External callers never choose a tenant — the control plane authenticates the
+request and injects a **trusted `X-Tenant-ID`** header before calling `search-api`, which reads
+a per-tenant Meilisearch index named `tenant_<normalized-uuid>_articles`. A forged tenant
+header from the outside cannot reach the search tier because that tier is not routable from the
+Ingress.
 
-### 6. Security Architecture
-- **Purpose**: Summarizes the layered security controls actually in place.
-- **Key Controls**: Managed TLS certificate with HTTP-to-HTTPS redirect, JWT and RBAC, rate limiting, `ClusterIP` network isolation, Workload Identity Federation, least-privilege service account, Secret Manager as the credential source of truth.
+**Data flow.** `control-plane` → `postgres` (via Prisma ORM) for relational state,
+`control-plane` → `redis` for rate-limit/usage counters, and `control-plane` → `search-api`
+for search; `search-api` → `meilisearch` for the actual query. The control plane's health probe
+is `GET /healthz`, and it applies database migrations (`prisma migrate deploy`) on startup.
 
 ---
 
-## Viewing Instructions
+## Delivery pipeline (CI/CD)
 
-These diagrams use **Mermaid** syntax and can be viewed:
+![CI/CD pipeline: a git push to main (or a v* tag or manual dispatch) triggers GitHub Actions deploy-gke.yml, which authenticates via Workload Identity Federation, builds and pushes the three images to Artifact Registry, syncs saas-secrets from Secret Manager, runs kubectl apply on the GKE overlay, then waits for rollout — automatically running rollout undo back to the last-good revision on failure.](img/architecture-cicd.png)
 
-1. **GitHub**: Automatically renders in README.md and markdown files
-2. **VS Code**: Install "Markdown Preview Mermaid Support" extension
-3. **Online**: Paste code into https://mermaid.live/
-4. **Documentation Sites**: Works with GitBook, Docusaurus, MkDocs
+**Trigger & gate.** A push to `main`, a `v*` tag, or a manual `workflow_dispatch` runs
+`.github/workflows/deploy-gke.yml`. A `check-config` gate requires 7 repository variables and
+**skips** (does not fail) the deploy if any are missing.
 
-## Export Options
+**Steps.**
+1. **Authenticate** to Google Cloud via **Workload Identity Federation** — no long-lived
+   service-account key is ever stored.
+2. **Build & push** the three images (`web`, `control-plane`, `search-api`), each tagged with
+   the commit SHA, to **Artifact Registry** (`europe-west3-docker.pkg.dev/criticalmars-saas-505914/saas`).
+3. **Sync secrets** — read each value from **GCP Secret Manager** and materialize the
+   Kubernetes Secret `saas-secrets` (the Deployments consume it via `secretKeyRef`).
+4. **Deploy** — `kustomize edit set image` then `kubectl apply -k infra/k8s/overlays/gke`.
+5. **Wait for rollout with auto-rollback** — if any Deployment fails to become healthy, the job
+   runs `kubectl rollout undo` back to the last-good revision, re-verifies it, and fails the
+   build, leaving the cluster on its last-good state.
 
-To export as images:
+**What ships via CD vs. Terraform.** Application code **and** the database schema
+(`prisma migrate deploy` runs on control-plane startup) ship on a push to `main` — no manual
+`kubectl`. Infrastructure (the cluster, Artifact Registry, WIF, static IP, and Secret Manager
+secrets) is provisioned by **Terraform** in `infra/terraform/` and applied manually — infra
+changes are reviewed plans, not push-to-deploy.
 
-```bash
-# Install mermaid-cli
-npm install -g @mermaid-js/mermaid-cli
+**Rollout safety.** Every Deployment has readiness + liveness probes and uses the default
+`RollingUpdate` strategy, so a broken release never becomes Ready and the previous ReplicaSet
+keeps serving (no downtime); the auto-rollback step then reverts the stuck rollout. Caveat:
+`rollout undo` reverts the pod template only (not ConfigMap/Secret changes), and forward DB
+migrations are not reverted — migrations must stay backward-compatible.
 
-# Convert to PNG
-mmdc -i docs/ARCHITECTURE_DIAGRAMS.md -o architecture.png
+---
 
-# Convert to SVG
-mmdc -i docs/ARCHITECTURE_DIAGRAMS.md -o architecture.svg
-```
+## Infrastructure (Terraform, `infra/terraform/`)
+
+Provisioned by Terraform and applied manually with Application Default Credentials:
+
+- **GKE Autopilot** cluster `saas-gke` (europe-west3).
+- **Artifact Registry** repository for the three service images.
+- **Workload Identity Federation** pool + provider, scoped to the `Marcelixoo/saas`
+  repository, bound to a **least-privilege deployer service account** (GKE deploy + Artifact
+  Registry push only).
+- **Global static IP** (`136.68.233.26`) for the Ingress.
+- **Secret Manager** secrets whose values are generated by `random_password` (never committed
+  to git; Terraform state is git-ignored), each granting the deployer SA per-secret
+  `roles/secretmanager.secretAccessor`.
+
+---
+
+## Security architecture
+
+- **Transport** — Google-managed TLS certificate at the Ingress; HTTP→HTTPS redirect via a
+  FrontendConfig.
+- **AuthN/AuthZ** — JWT authentication with role-based access control (admin / billing /
+  member) in the control plane.
+- **Tenant isolation** — the trust boundary above: internal services are `ClusterIP`-only, the
+  control plane injects a trusted `X-Tenant-ID`, and each tenant has its own search index.
+- **Rate limiting** — per-principal limits backed by Redis; fails closed on a Redis outage.
+- **Secrets** — GCP Secret Manager is the source of truth, materialized into the cluster at
+  deploy time; no plaintext secret values live in git.
+- **CI/CD trust** — Workload Identity Federation issues short-lived tokens per run (no
+  long-lived keys); the deployer service account is scoped to exactly what the deploy needs.
+
+---
+
+## At a glance
+
+- **Production**: GKE Autopilot · `saas-gke` · europe-west3 · namespace `saas`
+- **Public hosts**: `web.criticalmars.me`, `api.criticalmars.me` → `136.68.233.26`
+- **TLS**: Google-managed certificate · HTTP→HTTPS redirect
+- **Isolation**: 4 internal services `ClusterIP`-only; per-tenant search index; trusted `X-Tenant-ID`
+- **Secrets**: GCP Secret Manager → `saas-secrets` at deploy time
+- **Auth to GCP**: Workload Identity Federation — no long-lived keys
+- **Local/dev & acceptance**: docker-compose / k3d (`infra/k8s/overlays/local`); Playwright acceptance suite
+
+---
+
+## Regenerating the diagrams
+
+The two images above are rendered from self-contained HTML/SVG sources (hand-drawn style via an
+SVG turbulence filter, labels in the Kalam typeface). To regenerate, open the source in a
+browser and export, or screenshot at 2× for a crisp PNG. Source lives with the docs tooling; keep
+the PNGs in `docs/img/` in sync when the architecture changes.
 
 ---
 
 **Last Updated**: 2026-08-18
-**Version**: 2.0.0
+**Version**: 3.0.0

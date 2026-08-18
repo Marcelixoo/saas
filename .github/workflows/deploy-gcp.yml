@@ -1,10 +1,10 @@
 name: Deploy to GCP
 
+# GKE deployment is deferred for this submission (local k3d is the acceptance target),
+# and this workflow requires GCP secrets (GCP_SA_KEY / GCP_PROJECT_ID) that are not
+# configured. It is therefore manual-only so it never auto-fails on PRs or main pushes.
+# Trigger it by hand (Actions -> Deploy to GCP -> Run workflow) once GCP creds exist.
 on:
-  push:
-    branches: [main]
-  pull_request: # temporary to test deployments
-    branches: [main]
   workflow_dispatch:
 
 env:

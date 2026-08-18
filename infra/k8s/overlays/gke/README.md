@@ -9,8 +9,8 @@ additionally needed to `apply` it for real.
 
 | File | Change |
 |---|---|
-| `secret-delete-patch.yaml` | Deletes the base's dev-placeholder `saas-secrets` Secret entirely (does **not** ship it). |
-| `secret.example.yaml` | Template for the real Secret — copy, fill in, `kubectl apply -f` out-of-band. Not referenced by `kustomization.yaml`. |
+| `secret-delete-patch.yaml` | Deletes the base's dev-placeholder `saas-secrets` Secret entirely (does **not** ship it). Real values are provisioned in GCP Secret Manager (`infra/terraform/secrets.tf`) and materialized into the cluster by `.github/workflows/deploy-gke.yml` before `kubectl apply -k` runs. |
+| `secret.example.yaml` | Fallback template for a manually-applied plain Secret — copy, fill in, `kubectl apply -f` out-of-band. Not referenced by `kustomization.yaml`; only needed if you opt out of the Secret Manager path. |
 | `production-patch.yaml` | `web`/`control-plane`/`search-api` to 2 replicas; bumps resource requests/limits for `control-plane`/`search-api`. |
 | `ingress-patch.yaml` | GCE ingress class, reserved static IP annotation, GKE-managed cert, HTTPS-redirect FrontendConfig. Placeholder hostnames — **must** be replaced. |
 | `managed-certificate.yaml` | `ManagedCertificate` for the two ingress hostnames. Placeholder domains — **must** be replaced. |
@@ -26,17 +26,28 @@ StatefulSet/Deployment config — see "Managed alternatives" below.
    (creates the cluster, Artifact Registry repo, deploy service account +
    WIF, and reserves the `saas-ingress-ip` static IP this overlay's
    ingress annotation references).
-2. **Supply real secrets** (never committed):
+2. **Secrets are provisioned automatically** by `terraform apply` in
+   `infra/terraform/` (`secrets.tf`): random `JWT_SECRET`, `JWT_SECRET_KEY`,
+   `MEILISEARCH_API_KEY`, and `POSTGRES_PASSWORD` values, plus the derived
+   `DATABASE_URL` and static `POSTGRES_USER`, are written to GCP Secret
+   Manager (versioned/audited/IAM-controlled) and the deploy service
+   account is granted `roles/secretmanager.secretAccessor` on each. Every
+   run of `.github/workflows/deploy-gke.yml` then reads the latest version
+   of each secret and materializes them into the cluster as the
+   `saas-secrets` Secret before `kubectl apply -k` runs — no operator ever
+   handles raw values, and nothing is committed to git. Rotate a value by
+   creating a new Secret Manager version (e.g. re-`apply` after changing a
+   `random_password`, or `gcloud secrets versions add`); the next deploy
+   picks it up automatically.
+
+   **Fallback** (only if you opt out of the Secret Manager path — e.g. no
+   `terraform apply` yet): manually apply a plain Secret out-of-band, but
+   note the CD workflow's sync step will overwrite it on the next deploy:
    ```bash
    cp infra/k8s/overlays/gke/secret.example.yaml /tmp/saas-secrets.yaml
    # edit /tmp/saas-secrets.yaml with real, strong, unique values
    kubectl apply -f /tmp/saas-secrets.yaml
    ```
-   Recommended production path instead: GCP Secret Manager + the
-   [Secret Manager CSI driver](https://secrets-store-csi-driver.sigs.k8s.io/)
-   (see the comment block in `secret.example.yaml`) so secrets are
-   versioned/audited/IAM-controlled instead of a plain Secret an operator
-   applies by hand.
 3. **Point DNS at the reserved static IP** (`terraform output
    ingress_static_ip_address`) for your two real hostnames, then replace
    the placeholder `web.YOUR_DOMAIN.example` / `api.YOUR_DOMAIN.example`

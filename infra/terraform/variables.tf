@@ -70,5 +70,12 @@ variable "required_apis" {
     "serviceusage.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "sts.googleapis.com",
+    "secretmanager.googleapis.com",
   ]
+}
+
+variable "secret_name_prefix" {
+  description = "Prefix used when naming the GCP Secret Manager secrets created for the gke overlay's saas-secrets Kubernetes Secret (e.g. \"saas\" -> \"saas-JWT_SECRET\")."
+  type        = string
+  default     = "saas"
 }

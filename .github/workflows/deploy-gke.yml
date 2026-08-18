@@ -159,6 +159,35 @@ jobs:
           location: ${{ env.REGION }}
           project_id: ${{ env.PROJECT_ID }}
 
+      - name: Sync saas-secrets from Secret Manager
+        # GCP Secret Manager (provisioned by infra/terraform/secrets.tf) is
+        # the source of truth for prod secrets. This reads the latest
+        # version of each into shell variables (never echoed/logged — no
+        # set -x, gcloud output is captured into a var not printed to
+        # stdout) and materializes them as the native k8s Secret the
+        # Deployments already reference via secretKeyRef: saas-secrets. The
+        # gke overlay itself deletes the base's dev-placeholder Secret, so
+        # this step must run before `kubectl apply -k`.
+        run: |
+          kubectl get namespace saas >/dev/null 2>&1 || kubectl create namespace saas
+
+          POSTGRES_USER="$(gcloud secrets versions access latest --secret=saas-POSTGRES_USER --project="$PROJECT_ID")"
+          POSTGRES_PASSWORD="$(gcloud secrets versions access latest --secret=saas-POSTGRES_PASSWORD --project="$PROJECT_ID")"
+          DATABASE_URL="$(gcloud secrets versions access latest --secret=saas-DATABASE_URL --project="$PROJECT_ID")"
+          JWT_SECRET="$(gcloud secrets versions access latest --secret=saas-JWT_SECRET --project="$PROJECT_ID")"
+          JWT_SECRET_KEY="$(gcloud secrets versions access latest --secret=saas-JWT_SECRET_KEY --project="$PROJECT_ID")"
+          MEILISEARCH_API_KEY="$(gcloud secrets versions access latest --secret=saas-MEILISEARCH_API_KEY --project="$PROJECT_ID")"
+
+          kubectl create secret generic saas-secrets \
+            --namespace saas \
+            --from-literal=POSTGRES_USER="$POSTGRES_USER" \
+            --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            --from-literal=DATABASE_URL="$DATABASE_URL" \
+            --from-literal=JWT_SECRET="$JWT_SECRET" \
+            --from-literal=JWT_SECRET_KEY="$JWT_SECRET_KEY" \
+            --from-literal=MEILISEARCH_API_KEY="$MEILISEARCH_API_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy
         run: kubectl apply -k infra/k8s/overlays/gke
 

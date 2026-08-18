@@ -39,12 +39,11 @@ pod restart). A `infra/k8s/overlays/gke` overlay also exists in the repo but
 is **not deployed** — it is manifests-only, explicitly out of scope for this
 submission, and would need real secret management (see §6) and an
 Artifact-Registry image reference before it could be applied to a real GKE
-cluster. An earlier iteration of this project also shipped a `terraform/`
-directory and a Cloud Run GitHub Actions workflow (`deploy-gcp.yml`) for a
-single-service deploy; both were removed once the k3d/Kustomize path became
-the agreed deployment story (see §7) and are superseded by
-`infra/terraform/` (GKE provisioning) and
-`.github/workflows/deploy-gke.yml` (GKE CD pipeline).
+cluster. Production GKE provisioning and CD live in `infra/terraform/`
+(GKE Autopilot provisioning) and `.github/workflows/deploy-gke.yml` (GKE CD
+pipeline), which authenticate via Workload Identity Federation (no
+long-lived service-account keys) and deploy the full multi-service topology
+described in §1, not a single public service.
 
 Locally, outside k8s, the same services also run via `docker-compose.yml`
 for day-to-day development.
@@ -307,19 +306,18 @@ All of the following are exercised as automated tests today
 - **GKE overlay is unexercised.** `infra/k8s/overlays/gke` exists but has
   never been applied to a real cluster; treat it as a starting point, not a
   validated deployment path.
-- **Legacy Cloud Run / Terraform path — removed.** `terraform/` and
-  `.github/workflows/deploy-gcp.yml` were artifacts of an earlier,
-  single-Go-service iteration of this project. Notably, `deploy-gcp.yml`
-  deployed with `--allow-unauthenticated`, which would have been actively
-  wrong for the current architecture had it deployed the Go search-api
-  directly (that service must never be public — see `CONTRACT.md` §1/§4).
-  Both were deleted now that the k3d/Kustomize path is the agreed
-  deployment story, removing the risk of someone re-enabling latent-dangerous
-  CI config by supplying the missing `GCP_SA_KEY`/`GCP_PROJECT_ID` secrets.
-  Production GKE provisioning and CD now live in `infra/terraform/` and
-  `.github/workflows/deploy-gke.yml`, which authenticate via Workload
-  Identity Federation (no long-lived service-account keys) and deploy the
-  full multi-service topology, not a single public Go service.
+- **CI/CD trust concentration.** `.github/workflows/deploy-gke.yml`
+  authenticates via Workload Identity Federation to a single
+  `deploy_service_account` (from `infra/terraform` output
+  `deploy_service_account_email`) with permission to push to Artifact
+  Registry and deploy to the GKE cluster. Compromising the repo's
+  `main` branch protections or the configured `GCP_WORKLOAD_IDENTITY_PROVIDER`
+  / `GCP_SERVICE_ACCOUNT` repo variables would let an attacker push and
+  roll out an arbitrary image to the cluster; no long-lived
+  service-account key exists to leak (WIF issues short-lived tokens
+  per run), but the blast radius of that trust binding is still the
+  whole cluster and should stay scoped to exactly what the deploy job
+  needs (GKE deploy + Artifact Registry push), not broader project IAM.
 - **No WAF / service mesh / external IdP**, by design — out of scope for
   this project's size and threat profile (see also §8).
 - **Redis rate limiting fails closed but not gracefully.** A Redis outage

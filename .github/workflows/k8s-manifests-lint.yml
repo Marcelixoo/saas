@@ -25,13 +25,14 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
+      # `kubectl kustomize` fully renders and YAML-parses every resource with
+      # no cluster required, so a non-zero exit here already catches
+      # malformed Kustomize config, bad patches, or invalid YAML. (A true
+      # `kubectl apply --dry-run=client` also needs live server API
+      # discovery for REST mapping even with --validate=false, so it can't
+      # run without a cluster and isn't used here.)
       - name: Render local overlay
         run: kubectl kustomize infra/k8s/overlays/local > /tmp/local.yaml
 
       - name: Render gke overlay
         run: kubectl kustomize infra/k8s/overlays/gke > /tmp/gke.yaml
-
-      - name: Dry-run validate manifests (client-side only, no live cluster/API to fetch openapi from)
-        run: |
-          kubectl apply --dry-run=client --validate=false -f /tmp/local.yaml
-          kubectl apply --dry-run=client --validate=false -f /tmp/gke.yaml

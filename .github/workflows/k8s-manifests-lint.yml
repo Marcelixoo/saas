@@ -31,7 +31,7 @@ jobs:
       - name: Render gke overlay
         run: kubectl kustomize infra/k8s/overlays/gke > /tmp/gke.yaml
 
-      - name: Dry-run validate manifests (client-side only)
+      - name: Dry-run validate manifests (client-side only, no live cluster/API to fetch openapi from)
         run: |
-          kubectl apply --dry-run=client -f /tmp/local.yaml
-          kubectl apply --dry-run=client -f /tmp/gke.yaml
+          kubectl apply --dry-run=client --validate=false -f /tmp/local.yaml
+          kubectl apply --dry-run=client --validate=false -f /tmp/gke.yaml

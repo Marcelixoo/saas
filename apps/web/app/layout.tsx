@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { ibmPlexSans, jetbrainsMono } from './fonts';
+import { Toaster } from '../components/ui/toaster';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Admin UI',
@@ -8,17 +11,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body
-        style={{
-          fontFamily: 'system-ui, sans-serif',
-          margin: 0,
-          padding: '1.5rem',
-          background: '#f7f7f8',
-          color: '#1a1a1a',
-        }}
-      >
+    <html lang="en" className={`${ibmPlexSans.variable} ${jetbrainsMono.variable}`}>
+      <body>
         {children}
+        <Toaster />
       </body>
     </html>
   );

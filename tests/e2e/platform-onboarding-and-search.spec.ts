@@ -27,21 +27,25 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
   await page.getByTestId('organization-name').fill(orgName);
   await page.getByTestId('organization-submit').click();
 
-  // 5. Confirm FREE plan.
+  // 5. Confirm FREE plan (shown in the header for the active org).
   await expect(page.getByTestId('plan-badge')).toHaveText(/FREE/i);
 
   // 6. Seed the sample catalog (a 500-product slice of the real catalog) for
-  // this org. Seeding runs in a few chunked requests, so allow extra time.
+  // this org, from the Catalog tab. Seeding runs in a few chunked requests, so
+  // allow extra time.
+  await page.getByTestId('tab-catalog').click();
   await page.getByTestId('seed-catalog').click();
   await expect(page.getByTestId('catalog-seed-info')).toContainText(/Seeded/i, {
     timeout: 30000,
   });
 
-  // 7-8. Search a known seeded product and confirm it appears. "Samsung" is a
-  // brand present in the committed sample catalog (apps/web/lib/sample-catalog.ts).
-  // The search engine indexes asynchronously, so a query issued immediately
-  // after seeding can legitimately return no hits yet. Re-issue the search
-  // (bounded retry) until the freshly-seeded catalog becomes searchable.
+  // 7-8. Search a known seeded product and confirm it appears, from the Search
+  // tab. "Samsung" is a brand present in the committed sample catalog
+  // (apps/web/lib/sample-catalog.ts). The search engine indexes asynchronously,
+  // so a query issued immediately after seeding can legitimately return no hits
+  // yet. Re-issue the search (bounded retry) until the freshly-seeded catalog
+  // becomes searchable.
+  await page.getByTestId('tab-search').click();
   await page.getByTestId('search-input').fill('Samsung');
   await expect(async () => {
     await page.getByTestId('search-submit').click();
@@ -50,7 +54,8 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
     });
   }).toPass({ timeout: 20000 });
 
-  // 9. Confirm usage information is visible.
+  // 9. Confirm usage information is visible on the Metrics tab.
+  await page.getByTestId('tab-metrics').click();
   await expect(page.getByTestId('usage-search-count')).toBeVisible();
   await expect(page.getByTestId('usage-search-count')).not.toHaveText('0');
 });

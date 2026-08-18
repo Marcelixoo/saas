@@ -5,6 +5,9 @@ import { config } from './config';
 import { ApiError, errorBody } from './lib/errors';
 import { authRoutes } from './routes/auth';
 import { organizationRoutes } from './routes/organizations';
+import { metricsRoutes } from './routes/metrics';
+import { documentRoutes } from './routes/documents';
+import { memberRoutes } from './routes/members';
 import type { AppDeps } from './types';
 
 export function buildApp(deps: AppDeps): FastifyInstance {
@@ -53,6 +56,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.register(authRoutes);
   app.register(organizationRoutes);
+  app.register(metricsRoutes);
+  app.register(documentRoutes);
+  app.register(memberRoutes);
 
   return app;
 }

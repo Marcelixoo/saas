@@ -1,35 +1,20 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { ApiError, login, register } from '../../lib/api';
+import { ApiError, login, register } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Spinner } from '@/components/ui/spinner';
+import { useToast } from '@/components/ui/use-toast';
 
 type Props = {
   onAuthenticated: (token: string) => void;
-  onError: (message: string) => void;
 };
 
-const boxStyle: React.CSSProperties = {
-  border: '1px solid #d8d8dc',
-  borderRadius: 8,
-  padding: '1.25rem',
-  background: '#fff',
-  maxWidth: 360,
-};
+export default function AuthPanel({ onAuthenticated }: Props) {
+  const { toast } = useToast();
 
-const inputStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  padding: '0.5rem',
-  marginBottom: '0.75rem',
-  boxSizing: 'border-box',
-};
-
-const buttonStyle: React.CSSProperties = {
-  padding: '0.5rem 1rem',
-  cursor: 'pointer',
-};
-
-export default function AuthPanel({ onAuthenticated, onError }: Props) {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('New User');
@@ -46,7 +31,11 @@ export default function AuthPanel({ onAuthenticated, onError }: Props) {
       const result = await register(signupEmail, signupPassword, signupName);
       onAuthenticated(result.token);
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : 'Sign up failed');
+      toast({
+        variant: 'error',
+        title: 'Sign up failed',
+        description: err instanceof ApiError ? err.message : 'Please try again.',
+      });
     } finally {
       setSignupBusy(false);
     }
@@ -59,85 +48,100 @@ export default function AuthPanel({ onAuthenticated, onError }: Props) {
       const result = await login(loginEmail, loginPassword);
       onAuthenticated(result.token);
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : 'Login failed');
+      toast({
+        variant: 'error',
+        title: 'Log in failed',
+        description: err instanceof ApiError ? err.message : 'Please check your credentials.',
+      });
     } finally {
       setLoginBusy(false);
     }
   }
 
   return (
-    <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-      <form style={boxStyle} onSubmit={handleSignup}>
-        <h2>Sign up</h2>
-        <label htmlFor="signup-email">Email</label>
-        <input
-          id="signup-email"
-          data-testid="signup-email"
-          type="email"
-          style={inputStyle}
-          value={signupEmail}
-          onChange={(e) => setSignupEmail(e.target.value)}
-          required
-        />
-        <label htmlFor="signup-name">Name</label>
-        <input
-          id="signup-name"
-          type="text"
-          style={inputStyle}
-          value={signupName}
-          onChange={(e) => setSignupName(e.target.value)}
-        />
-        <label htmlFor="signup-password">Password</label>
-        <input
-          id="signup-password"
-          data-testid="signup-password"
-          type="password"
-          style={inputStyle}
-          value={signupPassword}
-          onChange={(e) => setSignupPassword(e.target.value)}
-          required
-        />
-        <button
-          data-testid="signup-submit"
-          type="submit"
-          style={buttonStyle}
-          disabled={signupBusy}
-        >
-          Create account
-        </button>
-      </form>
+    <div className="grid w-full gap-4 sm:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Create your account</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="flex flex-col gap-3.5" onSubmit={handleSignup}>
+            <FormField
+              label="Email"
+              type="email"
+              data-testid="signup-email"
+              autoComplete="email"
+              value={signupEmail}
+              onChange={(e) => setSignupEmail(e.target.value)}
+              required
+            />
+            <FormField
+              label="Name"
+              type="text"
+              data-testid="signup-name"
+              autoComplete="name"
+              value={signupName}
+              onChange={(e) => setSignupName(e.target.value)}
+            />
+            <FormField
+              label="Password"
+              type="password"
+              data-testid="signup-password"
+              autoComplete="new-password"
+              value={signupPassword}
+              onChange={(e) => setSignupPassword(e.target.value)}
+              required
+            />
+            <Button
+              variant="primary"
+              type="submit"
+              data-testid="signup-submit"
+              disabled={signupBusy}
+              className="mt-1"
+            >
+              {signupBusy ? <Spinner size="sm" /> : null}
+              Create account
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <form style={boxStyle} onSubmit={handleLogin}>
-        <h2>Log in</h2>
-        <label htmlFor="login-email">Email</label>
-        <input
-          id="login-email"
-          data-testid="login-email"
-          type="email"
-          style={inputStyle}
-          value={loginEmail}
-          onChange={(e) => setLoginEmail(e.target.value)}
-          required
-        />
-        <label htmlFor="login-password">Password</label>
-        <input
-          id="login-password"
-          data-testid="login-password"
-          type="password"
-          style={inputStyle}
-          value={loginPassword}
-          onChange={(e) => setLoginPassword(e.target.value)}
-          required
-        />
-        <button
-          data-testid="login-submit"
-          type="submit"
-          style={buttonStyle}
-          disabled={loginBusy}
-        >
-          Log in
-        </button>
-      </form>
+      <Card>
+        <CardHeader>
+          <CardTitle>Log in</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="flex flex-col gap-3.5" onSubmit={handleLogin}>
+            <FormField
+              label="Email"
+              type="email"
+              data-testid="login-email"
+              autoComplete="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              required
+            />
+            <FormField
+              label="Password"
+              type="password"
+              data-testid="login-password"
+              autoComplete="current-password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              required
+            />
+            <Button
+              type="submit"
+              data-testid="login-submit"
+              disabled={loginBusy}
+              className="mt-1"
+            >
+              {loginBusy ? <Spinner size="sm" /> : null}
+              Log in
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

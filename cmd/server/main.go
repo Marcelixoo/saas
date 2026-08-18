@@ -108,6 +108,12 @@ func main() {
 	// resource: search (with rate limiting)
 	r.GET("/search", rateLimiter.Middleware(), handlers.SearchArticles(engine))
 
+	// resource: internal, tenant-scoped search API (called only by the
+	// Fastify control plane; never exposed through Ingress). Trust boundary
+	// and tenant resolution are documented in CONTRACT.md §2 and §4.
+	r.GET("/internal/search", handlers.InternalSearch(engine))
+	r.POST("/internal/documents/batch", handlers.InternalIndexDocumentsBatch(engine))
+
 	logging.Info("starting server", "port", cfg.Server.Port)
 	if err := r.Run(":" + cfg.Server.Port); err != nil {
 		logging.Error("failed to start server", "error", err)

@@ -1,6 +1,8 @@
 package search
 
 import (
+	"strings"
+
 	"mini-search-platform/internal/models"
 )
 
@@ -11,6 +13,39 @@ var (
 type SearchEngine interface {
 	Search(q string, options SearchOptions) (SearchResponse, error)
 	IndexArticles(articles []*models.Article) error
+}
+
+// TenantDocument is a loosely-typed document used by the internal, tenant-aware
+// API. Unlike the public Article model, tenants may index arbitrary product
+// catalogs (id, title, brand, category, ...), so we keep the shape generic.
+type TenantDocument = map[string]interface{}
+
+// TenantSearchResponse mirrors CONTRACT.md §3's search response shape:
+// { "query", "hits", "total" }.
+type TenantSearchResponse struct {
+	Query string           `json:"query"`
+	Hits  []TenantDocument `json:"hits"`
+	Total int              `json:"total"`
+}
+
+// TenantSearchEngine is implemented by search engines that support
+// per-tenant index isolation, as required by the internal Go API
+// (CONTRACT.md §4).
+type TenantSearchEngine interface {
+	SearchTenant(tenantID string, query string, options SearchOptions) (TenantSearchResponse, error)
+	IndexTenantDocuments(tenantID string, documents []TenantDocument) error
+}
+
+// NormalizeTenantID lowercases the org UUID and replaces '-' with '_', per
+// CONTRACT.md §4's index naming rule.
+func NormalizeTenantID(tenantID string) string {
+	return strings.ReplaceAll(strings.ToLower(tenantID), "-", "_")
+}
+
+// TenantIndexName returns the Meilisearch index name for a given tenant,
+// following the `tenant_<normalized-org-uuid>_articles` convention.
+func TenantIndexName(tenantID string) string {
+	return "tenant_" + NormalizeTenantID(tenantID) + "_articles"
 }
 
 type SearchOptions struct {

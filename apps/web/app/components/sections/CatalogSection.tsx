@@ -80,11 +80,34 @@ export default function CatalogSection({ seedInfo }: { seedInfo: string | null }
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {isLoading ? (
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
+            <Table aria-busy="true" aria-label="Loading indexed products">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Image</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Category</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: PAGE_SIZE > 6 ? 6 : PAGE_SIZE }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Skeleton className="size-10 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3.5 w-40" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3.5 w-14" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3.5 w-20" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : error ? (
             <EmptyState
               title="Failed to load catalog"
@@ -147,7 +170,7 @@ export default function CatalogSection({ seedInfo }: { seedInfo: string | null }
                     size="sm"
                     data-testid="catalog-prev-page"
                     onClick={handlePrev}
-                    disabled={!hasPrev}
+                    disabled={!hasPrev || isLoading}
                   >
                     Previous
                   </Button>
@@ -156,7 +179,7 @@ export default function CatalogSection({ seedInfo }: { seedInfo: string | null }
                     size="sm"
                     data-testid="catalog-next-page"
                     onClick={handleNext}
-                    disabled={!hasNext}
+                    disabled={!hasNext || isLoading}
                   >
                     Next
                   </Button>

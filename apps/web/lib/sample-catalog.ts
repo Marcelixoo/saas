@@ -1,0 +1,17 @@
+export const SAMPLE_CATALOG = [
+  { id: 'sku-1', title: 'Red Nike Shoe', brand: 'Nike', category: 'shoes' },
+  { id: 'sku-2', title: 'Blue Nike Running Shoe', brand: 'Nike', category: 'shoes' },
+  { id: 'sku-3', title: 'Black Adidas Sneaker', brand: 'Adidas', category: 'shoes' },
+  { id: 'sku-4', title: 'White Adidas Trainer', brand: 'Adidas', category: 'shoes' },
+  { id: 'sku-5', title: 'Nike Dri-FIT T-Shirt', brand: 'Nike', category: 'apparel' },
+  { id: 'sku-6', title: 'Puma Track Jacket', brand: 'Puma', category: 'apparel' },
+  { id: 'sku-7', title: 'Reebok Classic Hoodie', brand: 'Reebok', category: 'apparel' },
+  { id: 'sku-8', title: 'Under Armour Compression Shorts', brand: 'Under Armour', category: 'apparel' },
+  { id: 'sku-9', title: 'Nike Backpack', brand: 'Nike', category: 'accessories' },
+  { id: 'sku-10', title: 'Adidas Duffel Bag', brand: 'Adidas', category: 'accessories' },
+  { id: 'sku-11', title: 'Wilson Tennis Racket', brand: 'Wilson', category: 'equipment' },
+  { id: 'sku-12', title: 'Spalding Basketball', brand: 'Spalding', category: 'equipment' },
+  { id: 'sku-13', title: 'Yoga Mat Pro', brand: 'Gaiam', category: 'equipment' },
+  { id: 'sku-14', title: 'Nike Sports Socks (3-pack)', brand: 'Nike', category: 'accessories' },
+  { id: 'sku-15', title: 'Fitbit Charge Fitness Tracker', brand: 'Fitbit', category: 'electronics' },
+];

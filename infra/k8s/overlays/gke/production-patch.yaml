@@ -1,7 +1,30 @@
 # Production-appropriate replicas/resources for the stateless services.
-# postgres/redis/meilisearch are left at the base's single-replica
-# StatefulSet/Deployment config (see infra/terraform/README.md for the
-# managed-Postgres/managed-Redis alternative to scaling those in-cluster).
+# postgres/redis are left at the base's single-replica config (see
+# infra/terraform/README.md for the managed-Postgres/managed-Redis alternative
+# to scaling those in-cluster). meilisearch keeps its single-replica
+# StatefulSet but gets a generous memory ceiling here: the base's 512Mi limit
+# OOM-kills (exit 137) on startup once a real catalog is on disk, because
+# opening the LMDB store + loading indexes spikes RSS past 512Mi. That took the
+# whole API down (search-api/control-plane block on Meili via init containers).
+# Generous headroom now; right-size later once we have memory observability.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meilisearch
+  namespace: saas
+spec:
+  template:
+    spec:
+      containers:
+        - name: meilisearch
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 4Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

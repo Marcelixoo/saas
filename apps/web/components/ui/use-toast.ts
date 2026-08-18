@@ -44,6 +44,7 @@ function reducer(state: State, action: Action): State {
 // this client-only store).
 let memoryState: State = { toasts: [] };
 const listeners = new Set<(state: State) => void>();
+const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 function dispatch(action: Action) {
   memoryState = reducer(memoryState, action);
@@ -55,6 +56,12 @@ function genId(): string {
 }
 
 function dismissToast(toastId: string) {
+  const timeout = toastTimeouts.get(toastId);
+  if (timeout) {
+    clearTimeout(timeout);
+    toastTimeouts.delete(toastId);
+  }
+
   dispatch({ type: 'DISMISS_TOAST', toastId });
   setTimeout(() => dispatch({ type: 'REMOVE_TOAST', toastId }), TOAST_EXIT_ANIMATION_MS);
 }
@@ -63,14 +70,14 @@ function toast(props: Omit<ToasterToast, 'id' | 'closing'>) {
   const id = genId();
   dispatch({ type: 'ADD_TOAST', toast: { ...props, id } });
 
-  const timeout = setTimeout(() => dismissToast(id), TOAST_DURATION_MS);
+  toastTimeouts.set(
+    id,
+    setTimeout(() => dismissToast(id), TOAST_DURATION_MS),
+  );
 
   return {
     id,
-    dismiss: () => {
-      clearTimeout(timeout);
-      dismissToast(id);
-    },
+    dismiss: () => dismissToast(id),
   };
 }
 

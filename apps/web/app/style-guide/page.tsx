@@ -9,6 +9,7 @@ import { ChartCard } from '@/components/ui/chart-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FacetChip } from '@/components/ui/facet-chip';
 import { FormField } from '@/components/ui/form-field';
+import { Label } from '@/components/ui/label';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { LegendItem } from '@/components/ui/legend-item';
 import { NavItem } from '@/components/ui/nav-item';
@@ -86,13 +87,17 @@ export default function StyleGuidePage() {
         <FormField label="Workspace name" placeholder="Acme Store" defaultValue="Meridian Store" />
         <FormField label="Password" type="password" error="Invalid email or password." />
         <div className="flex w-[280px] flex-col gap-1.5">
-          <span className="text-xs font-semibold text-ink">Organization</span>
-          <Select defaultValue="meridian">
+          <Label htmlFor="style-guide-org-select">Organization</Label>
+          <Select id="style-guide-org-select" defaultValue="meridian">
             <option value="meridian">Meridian Store</option>
             <option value="acme">Acme Corp</option>
           </Select>
         </div>
-        <SearchInput className="w-[280px]" placeholder="Search products…" />
+        <SearchInput
+          className="w-[280px]"
+          placeholder="Search products…"
+          aria-label="Search products"
+        />
       </Section>
 
       <Section title="Navigation">

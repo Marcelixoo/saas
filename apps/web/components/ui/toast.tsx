@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { CircleCheck, CircleX, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react';
+import { CircleCheck, CircleX, Info, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 

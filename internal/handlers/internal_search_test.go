@@ -97,6 +97,30 @@ func indexDocument(t *testing.T, r *gin.Engine, tenantID string, doc map[string]
 	}
 }
 
+// indexDocumentReset posts a batch with `?reset=true`, which truncates the
+// tenant index before indexing the given document.
+func indexDocumentReset(t *testing.T, r *gin.Engine, tenantID string, doc map[string]interface{}) {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]interface{}{
+		"documents": []map[string]interface{}{doc},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal batch payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/internal/documents/batch?reset=true", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(handlers.TenantIDHeader, tenantID)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 accepted, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func searchAsTenant(t *testing.T, r *gin.Engine, tenantID, query string) map[string]interface{} {
 	t.Helper()
 
@@ -117,6 +141,142 @@ func searchAsTenant(t *testing.T, r *gin.Engine, tenantID, query string) map[str
 		t.Fatalf("failed to unmarshal search response: %v", err)
 	}
 	return result
+}
+
+// searchAsTenantWithQuery is like searchAsTenant but forwards an arbitrary
+// raw query string (e.g. "q=shoe&filter=...&sort=...&facets=...") instead of
+// just `q`, so tests can exercise filter/sort/facets end-to-end.
+func searchAsTenantWithQuery(t *testing.T, r *gin.Engine, tenantID, rawQuery string) map[string]interface{} {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/internal/search?"+rawQuery, nil)
+	if tenantID != "" {
+		req.Header.Set(handlers.TenantIDHeader, tenantID)
+	}
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("failed to unmarshal search response: %v", err)
+	}
+	return result
+}
+
+// trySearchAsTenantWithQuery mirrors trySearchAsTenant but forwards an
+// arbitrary raw query string, for polling filter/sort/facets results while
+// tenant index settings converge.
+func trySearchAsTenantWithQuery(t *testing.T, r *gin.Engine, tenantID, rawQuery string) (map[string]interface{}, bool) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/internal/search?"+rawQuery, nil)
+	req.Header.Set(handlers.TenantIDHeader, tenantID)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		return nil, false
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		return nil, false
+	}
+	return result, true
+}
+
+// TestInternalSearch_FilterSortFacetsAndPaging_EndToEnd indexes a small
+// per-tenant catalog with brand/category/price and asserts that `filter`,
+// `sort`, `facets`, `limit`, and `offset` all reach Meilisearch and shape the
+// response as CONTRACT.md §3/§4 describe: `facetDistribution` present only
+// when `facets` was requested, and `limit`/`offset` echoing the effective
+// paging.
+func TestInternalSearch_FilterSortFacetsAndPaging_EndToEnd(t *testing.T) {
+	r, _ := newTestRouter(t)
+
+	tenant := uuid.NewString()
+	uniqueBrand := "Bramd" + strings.ReplaceAll(uuid.NewString(), "-", "")
+
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-a-" + uuid.NewString(), "title": "Alpha Shoe",
+		"brand": uniqueBrand, "category": "shoes", "price": 30.0,
+	})
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-b-" + uuid.NewString(), "title": "Beta Shoe",
+		"brand": uniqueBrand, "category": "shoes", "price": 10.0,
+	})
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-c-" + uuid.NewString(), "title": "Gamma Shirt",
+		"brand": uniqueBrand, "category": "shirts", "price": 20.0,
+	})
+
+	filterQ := fmt.Sprintf(
+		"q=%s&filter=%s&sort=%s&facets=%s&limit=10&offset=0",
+		url.QueryEscape(uniqueBrand),
+		url.QueryEscape(`category = "shoes"`),
+		url.QueryEscape("price:asc"),
+		url.QueryEscape("category"),
+	)
+
+	var result map[string]interface{}
+	found := false
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		res, ok := trySearchAsTenantWithQuery(t, r, tenant, filterQ)
+		if ok {
+			result = res
+			if hits, ok := res["hits"].([]interface{}); ok && len(hits) == 2 {
+				found = true
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !found {
+		t.Fatalf("timed out waiting for filtered/sorted/faceted results, last result: %v", result)
+	}
+
+	hits, ok := result["hits"].([]interface{})
+	if !ok || len(hits) != 2 {
+		t.Fatalf("expected filter to restrict to the 2 'shoes' docs, got: %v", result)
+	}
+
+	first, ok := hits[0].(map[string]interface{})
+	if !ok || first["title"] != "Beta Shoe" {
+		t.Fatalf("expected price:asc to sort the cheaper shoe first, got: %v", hits)
+	}
+
+	facetDist, ok := result["facetDistribution"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected facetDistribution to be present when facets were requested, got: %v", result)
+	}
+	categoryFacet, ok := facetDist["category"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected a 'category' facet distribution, got: %v", facetDist)
+	}
+	if count, ok := categoryFacet["shoes"].(float64); !ok || count != 2 {
+		t.Fatalf("expected facetDistribution.category.shoes == 2, got: %v", categoryFacet["shoes"])
+	}
+
+	if limit, ok := result["limit"].(float64); !ok || int(limit) != 10 {
+		t.Fatalf("expected limit to echo the requested 10, got: %v", result["limit"])
+	}
+	if offset, ok := result["offset"].(float64); !ok || int(offset) != 0 {
+		t.Fatalf("expected offset to echo the requested 0, got: %v", result["offset"])
+	}
+
+	// Without `facets`, the field must be entirely absent (backward compat).
+	plainQ := fmt.Sprintf("q=%s", url.QueryEscape(uniqueBrand))
+	plainResult := searchAsTenantWithQuery(t, r, tenant, plainQ)
+	if _, present := plainResult["facetDistribution"]; present {
+		t.Fatalf("expected facetDistribution to be absent when facets weren't requested, got: %v", plainResult)
+	}
 }
 
 // trySearchAsTenant is like searchAsTenant but tolerates transient errors
@@ -279,6 +439,112 @@ func TestInternalDocumentsBatch_BodyAndTagsRoundTrip(t *testing.T) {
 	}
 	if !foundByTag {
 		t.Fatalf("timed out waiting for tag %q to become searchable, last result: %v", uniqueTag, byTag)
+	}
+}
+
+// TestInternalDocumentsBatch_ResetTruncatesIndex asserts that a batch sent with
+// `?reset=true` truncates the tenant index first: after re-seeding with reset,
+// documents from the previous seed are gone and only the new documents remain.
+func TestInternalDocumentsBatch_ResetTruncatesIndex(t *testing.T) {
+	r, _ := newTestRouter(t)
+
+	tenant := uuid.NewString()
+	oldTerm := fmt.Sprintf("Oldonium%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+	newTerm := fmt.Sprintf("Newtronic%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+
+	// First seed.
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-old-" + uuid.NewString(), "title": oldTerm + " Gadget",
+	})
+
+	// Wait for the first doc to become searchable.
+	found := false
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		res, ok := trySearchAsTenant(t, r, tenant, oldTerm)
+		if ok {
+			if hits, ok := res["hits"].([]interface{}); ok && len(hits) == 1 {
+				found = true
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !found {
+		t.Fatalf("timed out waiting for the first-seed document to become searchable")
+	}
+
+	// Re-seed with reset=true and a different document.
+	indexDocumentReset(t, r, tenant, map[string]interface{}{
+		"id": "sku-new-" + uuid.NewString(), "title": newTerm + " Gadget",
+	})
+
+	// The new doc must appear and the old one must disappear.
+	newFound := false
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		newRes, ok := trySearchAsTenant(t, r, tenant, newTerm)
+		if !ok {
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+		newHits, _ := newRes["hits"].([]interface{})
+		oldRes, _ := trySearchAsTenant(t, r, tenant, oldTerm)
+		oldHits, _ := oldRes["hits"].([]interface{})
+		if len(newHits) == 1 && len(oldHits) == 0 {
+			newFound = true
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !newFound {
+		t.Fatalf("expected reset to leave only the new document (old term gone, new term present)")
+	}
+}
+
+// TestInternalSearch_SortDominatesRelevance asserts the ranking-rule change:
+// an explicit sort orders results globally, not merely as a tie-breaker within
+// equal-relevance groups. A title with more term repetitions would rank first
+// under default relevancy, but price:asc must surface the cheapest hit first.
+func TestInternalSearch_SortDominatesRelevance(t *testing.T) {
+	r, _ := newTestRouter(t)
+
+	tenant := uuid.NewString()
+	term := fmt.Sprintf("Widgetron%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+
+	// More-relevant (term repeated) but expensive.
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-hi-" + uuid.NewString(), "title": term + " " + term + " " + term, "price": 99.0,
+	})
+	// Less-relevant (term once) but cheap.
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-lo-" + uuid.NewString(), "title": term, "price": 1.0,
+	})
+
+	sortQ := fmt.Sprintf("q=%s&sort=%s&limit=10", url.QueryEscape(term), url.QueryEscape("price:asc"))
+
+	var hits []interface{}
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		res, ok := trySearchAsTenantWithQuery(t, r, tenant, sortQ)
+		if ok {
+			if h, ok := res["hits"].([]interface{}); ok && len(h) == 2 {
+				hits = h
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if len(hits) != 2 {
+		t.Fatalf("timed out waiting for both documents to become searchable")
+	}
+
+	first, ok := hits[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected first hit to be an object, got: %v", hits[0])
+	}
+	if price, ok := first["price"].(float64); !ok || price != 1.0 {
+		t.Fatalf("expected price:asc to dominate relevancy and put the $1 hit first, got price: %v", first["price"])
 	}
 }
 

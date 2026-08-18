@@ -49,6 +49,7 @@ func InternalSearch(engine search.TenantSearchEngine) gin.HandlerFunc {
 			Offset: params.Offset,
 			Filter: params.Filter,
 			Sort:   []string{params.Sort},
+			Facets: params.Facets,
 		})
 		if err != nil {
 			errors.Handle(c, errors.Search("failed to search tenant documents", err))
@@ -79,6 +80,15 @@ func InternalIndexDocumentsBatch(engine search.TenantSearchEngine) gin.HandlerFu
 		if err := c.ShouldBindJSON(&input); err != nil {
 			errors.Handle(c, errors.Validation(err.Error()))
 			return
+		}
+
+		// reset=true truncates the tenant index before indexing, so a re-seed
+		// rebuilds the catalog from scratch instead of layering onto stale docs.
+		if c.Query("reset") == "true" {
+			if err := engine.DeleteAllTenantDocuments(tenantID); err != nil {
+				errors.Handle(c, errors.Search("failed to reset tenant documents", err))
+				return
+			}
 		}
 
 		if err := engine.IndexTenantDocuments(tenantID, input.Documents); err != nil {

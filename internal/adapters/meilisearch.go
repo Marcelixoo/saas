@@ -6,6 +6,7 @@ import (
 	"mini-search-platform/internal/models"
 	"mini-search-platform/internal/search"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/meilisearch/meilisearch-go"
@@ -26,6 +27,12 @@ var (
 	tenantSearchableAttrs = []string{"title", "body", "author", "tags", "brand", "category"}
 	tenantFilterableAttrs = []interface{}{"author", "tags", "brand", "category", "price"}
 	tenantSortableAttrs   = []string{"author", "title", "price"}
+	// tenantRankingRules move "sort" ahead of the relevancy rules (Meilisearch's
+	// default is words,typo,proximity,attribute,sort,exactness). With "sort"
+	// first, an explicit sort (e.g. price:asc) orders results globally rather
+	// than only breaking ties within equal-relevance groups; queries that don't
+	// request a sort are unaffected (the sort rule is inert without one).
+	tenantRankingRules = []string{"sort", "words", "typo", "proximity", "attribute", "exactness"}
 )
 
 type MeilisearchEngine struct {
@@ -196,6 +203,9 @@ func initTenantIndex(idx meilisearch.IndexManager, indexName string) error {
 	if _, err := idx.UpdateSortableAttributes(&tenantSortableAttrs); err != nil {
 		return err
 	}
+	if _, err := idx.UpdateRankingRules(&tenantRankingRules); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -244,6 +254,20 @@ func (e *MeilisearchEngine) IndexTenantDocuments(tenantID string, documents []se
 	return err
 }
 
+// DeleteAllTenantDocuments clears every document from the tenant's isolated
+// index without deleting the index itself, so its settings (filterable/sortable
+// attributes, facets) are preserved for the rebuild that follows. Meilisearch
+// processes an index's tasks in FIFO order, so enqueuing this before the
+// subsequent AddDocuments task yields a clean truncate-then-rebuild.
+func (e *MeilisearchEngine) DeleteAllTenantDocuments(tenantID string) error {
+	idx, err := e.tenantIndex(tenantID)
+	if err != nil {
+		return err
+	}
+	_, err = idx.DeleteAllDocuments()
+	return err
+}
+
 // SearchTenant searches within the tenant's isolated index. Unlike
 // IndexTenantDocuments, it deliberately does NOT go through tenantIndex to
 // lazily create the index: a search is a read, and a brand-new tenant that
@@ -254,18 +278,28 @@ func (e *MeilisearchEngine) SearchTenant(tenantID string, query string, options 
 	indexName := search.TenantIndexName(tenantID)
 	idx := Client.Index(indexName)
 
-	result, err := idx.Search(query, &meilisearch.SearchRequest{
+	req := &meilisearch.SearchRequest{
 		Limit:  int64(options.Limit),
 		Offset: int64(options.Offset),
 		Filter: options.Filter,
 		Sort:   options.Sort,
-	})
+		// Return each hit's relevance score (0..1) as `_rankingScore` so the UI
+		// can show it and users can compare relevance ranking against sorts.
+		ShowRankingScore: true,
+	}
+	if options.Facets != "" {
+		req.Facets = splitAndTrim(options.Facets)
+	}
+
+	result, err := idx.Search(query, req)
 	if err != nil {
 		if isIndexNotFound(err) {
 			return search.TenantSearchResponse{
-				Query: query,
-				Hits:  []search.TenantDocument{},
-				Total: 0,
+				Query:  query,
+				Hits:   []search.TenantDocument{},
+				Total:  0,
+				Limit:  options.Limit,
+				Offset: options.Offset,
 			}, nil
 		}
 		return search.TenantSearchResponse{Query: query}, err
@@ -285,8 +319,45 @@ func (e *MeilisearchEngine) SearchTenant(tenantID string, query string, options 
 	}
 
 	return search.TenantSearchResponse{
-		Query: result.Query,
-		Hits:  hits,
-		Total: int(result.EstimatedTotalHits),
+		Query:             result.Query,
+		Hits:              hits,
+		Total:             int(result.EstimatedTotalHits),
+		FacetDistribution: convertFacetDistribution(result.FacetDistribution),
+		Limit:             int(result.Limit),
+		Offset:            int(result.Offset),
 	}, nil
+}
+
+// splitAndTrim splits a comma-separated list (e.g. the `facets` query param)
+// into a trimmed, non-empty slice of fields.
+func splitAndTrim(csv string) []string {
+	parts := strings.Split(csv, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// convertFacetDistribution decodes Meilisearch's raw facet distribution JSON
+// (field -> value -> count) into the strongly-typed
+// map[string]map[string]int used in TenantSearchResponse. Returns nil when
+// there is nothing to report, so the `omitempty` JSON tag hides the field
+// entirely (facets weren't requested).
+func convertFacetDistribution(raw json.RawMessage) map[string]map[string]int {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var out map[string]map[string]int
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

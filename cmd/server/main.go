@@ -112,6 +112,7 @@ func main() {
 	// Fastify control plane; never exposed through Ingress). Trust boundary
 	// and tenant resolution are documented in CONTRACT.md §2 and §4.
 	r.GET("/internal/search", handlers.InternalSearch(engine))
+	r.GET("/internal/documents", handlers.InternalListDocuments(engine))
 	r.POST("/internal/documents/batch", handlers.InternalIndexDocumentsBatch(engine))
 
 	logging.Info("starting server", "port", cfg.Server.Port)

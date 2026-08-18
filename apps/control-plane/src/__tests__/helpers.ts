@@ -9,21 +9,35 @@ export interface TestContext {
   prisma: PrismaClient;
   redis: Redis;
   searchClient: SearchApiClient & {
-    calls: { search: Array<{ tenantId: string; query: string }>; index: Array<{ tenantId: string; documents: unknown[] }> };
+    calls: {
+      search: Array<{ tenantId: string; query: string; opts?: import('../lib/searchClient').SearchOptions }>;
+      index: Array<{ tenantId: string; documents: unknown[]; reset?: boolean }>;
+      listDocuments: Array<{ tenantId: string; offset: number; limit: number }>;
+    };
   };
 }
 
 export function createFakeSearchClient(): TestContext['searchClient'] {
-  const calls: TestContext['searchClient']['calls'] = { search: [], index: [] };
+  const calls: TestContext['searchClient']['calls'] = { search: [], index: [], listDocuments: [] };
   return {
     calls,
-    async search(tenantId, query) {
-      calls.search.push({ tenantId, query });
+    async search(tenantId, query, opts) {
+      calls.search.push({ tenantId, query, opts });
       return { query, hits: [{ id: 'sku-1', title: 'Red Nike Shoe' }], total: 1 };
     },
-    async indexBatch(tenantId, documents) {
-      calls.index.push({ tenantId, documents });
+    async indexBatch(tenantId, documents, reset) {
+      calls.index.push({ tenantId, documents, reset });
       return { accepted: documents.length };
+    },
+    // Catalog listing fake — separate block, owned by Agent C (Catalog).
+    async listDocuments(tenantId, offset, limit) {
+      calls.listDocuments.push({ tenantId, offset, limit });
+      return {
+        documents: [{ id: 'sku-1', title: 'Red Nike Shoe', price: 59.9, imageUrl: 'https://example.com/shoe.png' }],
+        total: 1,
+        offset,
+        limit,
+      };
     },
   };
 }

@@ -159,11 +159,13 @@ implemented (it's optional per the task brief).
 The acceptance workflow is deliberately informational: its own header
 documents that it was authored before the platform existed and is expected
 to be red until the full stack is deployed. It is not a gate for ordinary
-feature PRs. Two other workflows in `.github/workflows/` — `main.yml` (a
-third-party AI PR reviewer) and `deploy-gcp.yml` (a standalone Cloud Run
-deploy of only the Go service) — predate the multi-tenant platform and are
-not part of this submission's CI/CD story; see
-[`ARCHITECTURE.md` §8](../ARCHITECTURE.md#8-deployment-topologies).
+feature PRs. `main.yml` (a third-party AI PR reviewer) predates the
+multi-tenant platform and is not part of this submission's CI/CD story. A
+standalone Cloud Run deploy of only the Go service (`deploy-gcp.yml` +
+a top-level `terraform/` directory) also predated the platform and has
+since been **removed**; GKE (`infra/terraform/` +
+`.github/workflows/deploy-gke.yml`) is now the production deployment path
+— see [`ARCHITECTURE.md` §8](../ARCHITECTURE.md#8-deployment-topologies).
 
 ## Playwright acceptance suite
 

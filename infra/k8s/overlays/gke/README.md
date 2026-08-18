@@ -1,9 +1,13 @@
 # `infra/k8s/overlays/gke` — production overlay
 
-Deployed by `.github/workflows/deploy-gke.yml` against the cluster
-provisioned by `infra/terraform/`. `kubectl kustomize infra/k8s/overlays/gke`
-builds cleanly with no live cluster or secrets — this doc covers what's
-additionally needed to `apply` it for real.
+This is the overlay backing the **live production deployment**, on the
+`saas-gke` GKE Autopilot cluster (europe-west3, namespace `saas`), deployed
+by `.github/workflows/deploy-gke.yml` against the cluster provisioned by
+`infra/terraform/`. `kubectl kustomize infra/k8s/overlays/gke` also builds
+cleanly offline with no live cluster or secrets, which is what
+`k8s-manifests-lint.yml` checks in CI; this doc covers what was needed the
+first time it was applied for real, for anyone standing up a second
+environment from the same overlay.
 
 ## What this overlay changes vs. base
 
@@ -89,9 +93,6 @@ reasonable and already-verified trade-off (see the local k3d overlay).
 
 ## Known limitations
 
-- Not yet applied to any real GKE cluster by this change — manifests-only,
-  validated with `kubectl kustomize` (offline, no live GCP credentials
-  used or required).
 - No HPA (HorizontalPodAutoscaler) configured; replicas are static.
 - No PodDisruptionBudget; acceptable at 2 replicas for now but worth adding
   before treating this as a hard production SLA target.

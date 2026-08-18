@@ -30,23 +30,33 @@ Browser / Load Generator
   Meilisearch proxy), `postgres` (users/orgs/memberships/usage), `redis`
   (rate-limit counters), `meilisearch` (per-tenant search indexes).
 
-**Current deployment target: local k3d (Kubernetes-in-Docker).** The
-Kubernetes runtime (`infra/k8s/base` + `infra/k8s/overlays/local`, Kustomize)
-deploys this exact topology to a local k3d cluster and has been verified
-end-to-end there (register → login → create-org → index → search through the
-ingress, internal services unreachable via ingress, Postgres data survives a
-pod restart). A `infra/k8s/overlays/gke` overlay also exists in the repo but
-is **not deployed** — it is manifests-only, explicitly out of scope for this
-submission, and would need real secret management (see §6) and an
-Artifact-Registry image reference before it could be applied to a real GKE
-cluster. Production GKE provisioning and CD live in `infra/terraform/`
-(GKE Autopilot provisioning) and `.github/workflows/deploy-gke.yml` (GKE CD
-pipeline), which authenticate via Workload Identity Federation (no
-long-lived service-account keys) and deploy the full multi-service topology
-described in §1, not a single public service.
+**Production deployment target: GKE Autopilot.** `infra/k8s/overlays/gke`
+(Kustomize, on top of `infra/k8s/base`) is live on a GKE Autopilot cluster
+(`saas-gke`, europe-west3, namespace `saas`), serving this exact topology at
+https://web.criticalmars.me (Admin UI) and https://api.criticalmars.me
+(control plane; `GET /healthz` → `200 {"status":"ok"}`), fronted by a single
+GCE Ingress that exposes only `web` and `control-plane` behind a static IP
+and a Google-managed TLS certificate, with HTTP redirected to HTTPS.
+`search-api`, `postgres`, `redis`, and `meilisearch` remain ClusterIP-only,
+never Ingress-routed. Cluster/registry/networking/secrets infrastructure is
+provisioned by `infra/terraform/` (GKE Autopilot, Artifact Registry, Workload
+Identity Federation, the static IP, GCP Secret Manager) and applied manually;
+application code and database schema (`prisma migrate deploy` on
+control-plane startup) ship continuously via `.github/workflows/deploy-gke.yml`
+on push to `main`/`v*` or manual dispatch — building and pushing the three
+service images to Artifact Registry, authenticating via Workload Identity
+Federation (no long-lived service-account keys), applying the `gke` overlay,
+and waiting on rollout health with automatic rollback to the last-good
+revision on failure.
 
-Locally, outside k8s, the same services also run via `docker-compose.yml`
-for day-to-day development.
+**Local dev and acceptance target: k3d (Kubernetes-in-Docker).** The same
+Kustomize base plus `infra/k8s/overlays/local` deploys this topology to a
+local k3d cluster and is verified end-to-end there (register → login →
+create-org → index → search through the ingress, internal services
+unreachable via ingress, Postgres data survives a pod restart); it is also
+the target the Playwright acceptance suite runs against in CI. Locally,
+outside k8s, the same services also run via `docker-compose.yml` for
+day-to-day development.
 
 ## 2. Assets
 
@@ -239,15 +249,16 @@ present in logs.
   `user_id`, `tenant_id`, and error message only — never a password or a raw
   JWT. Grepped for `password`/`token` field usage in both logging packages
   to confirm.
-- **Known limitation:** Kubernetes `Secret` objects (`infra/k8s/base/secret.yaml`)
+- **Local k3d:** Kubernetes `Secret` objects (`infra/k8s/base/secret.yaml`)
   hold `JWT_SECRET`, `JWT_SECRET_KEY`, DB credentials, and the Meilisearch
-  key as base64-encoded (not encrypted-at-rest by default) values — this is
-  a plain k8s Secret, not a managed secret store (Vault, GCP Secret Manager,
-  etc.). Acceptable for a local k3d prototype; the repo's own
-  `infra/k8s/overlays/gke/kustomization.yaml` explicitly documents that a
-  real GKE deployment must move to Secret Manager via the CSI driver before
-  going anywhere near production data, and intentionally does not patch the
-  base secret so it can't be applied as-is by accident.
+  key as base64-encoded (not encrypted-at-rest by default) values — a plain
+  k8s Secret, not a managed secret store. Acceptable for a local prototype
+  cluster.
+- **Production GKE:** GCP Secret Manager is the source of truth. The CD
+  pipeline materializes `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`,
+  `JWT_SECRET`, `JWT_SECRET_KEY`, and `MEILISEARCH_API_KEY` from Secret
+  Manager into the k8s Secret `saas-secrets` on every deploy, rather than
+  committing or hand-applying secret values against the `gke` overlay.
 - **Fixed in this change:** `server.ts` now refuses to boot with the
   hardcoded default `JWT_SECRET` value when `NODE_ENV=production` (see
   §4.1) — a defense specifically against this class of "checked-in dev
@@ -302,10 +313,9 @@ All of the following are exercised as automated tests today
   loss. Acceptable for this submission's scope; would need a managed
   Postgres (Cloud SQL, RDS) or a proper HA operator before any real
   multi-user deployment.
-- **Kubernetes Secrets, not a managed secret store**, as described in §4.7.
-- **GKE overlay is unexercised.** `infra/k8s/overlays/gke` exists but has
-  never been applied to a real cluster; treat it as a starting point, not a
-  validated deployment path.
+- **Local k3d uses plain Kubernetes Secrets, not a managed secret store**,
+  as described in §4.7; production GKE sources secrets from GCP Secret
+  Manager instead.
 - **CI/CD trust concentration.** `.github/workflows/deploy-gke.yml`
   authenticates via Workload Identity Federation to a single
   `deploy_service_account` (from `infra/terraform` output

@@ -23,9 +23,8 @@ commands, and a demo script, see
 - **`cmd/`, `internal/`, `pkg/`** — Go search API. Internal-only; multi-tenant
   via per-tenant Meilisearch indexes (`tenant_<uuid>_articles`), driven only
   by a trusted `X-Tenant-ID` header set by the control plane.
-- **`infra/`** *(on branch `infra/k8s-runtime`, merged for this submission)* —
-  Kustomize manifests for local Kubernetes on k3d, plus a documented-only GKE
-  overlay.
+- **`infra/`** — Kustomize manifests for the live GKE production deployment
+  and for local Kubernetes on k3d (acceptance target).
 - **`load/`** — Locust-based synthetic multi-tenant load generator.
 - **`tests/e2e/`** — Playwright system acceptance suite.
 - **`docker-compose.yml`** — full local stack (data tier + both app tiers).
@@ -94,12 +93,11 @@ Then the Admin UI is at `http://web.localtest.me:8088` and the API at
 `http://api.localtest.me:8088` (no `/etc/hosts` edits needed —
 `*.localtest.me` resolves publicly to `127.0.0.1`).
 
-**GKE honesty note:** `infra/k8s/overlays/gke/**` contains manifests for a
-GKE deployment (image-registry placeholders, a GKE-style Ingress patch,
-notes on migrating secrets to Secret Manager), but **this overlay has not
-been applied to any real GKE cluster** as part of this submission. It is
-provided as documented intent for a future cloud rollout, not a verified
-deployment — see [`ARCHITECTURE.md` §8](ARCHITECTURE.md#8-deployment-topologies).
+**Production:** `infra/k8s/overlays/gke/**` is live on a GKE Autopilot
+cluster, serving https://web.criticalmars.me and https://api.criticalmars.me.
+The k3d bring-up above is the local/CI acceptance path, not production — see
+[`ARCHITECTURE.md` §8](ARCHITECTURE.md#8-deployment-topologies) and
+[`docs/SUBMISSION_RUNBOOK.md`](docs/SUBMISSION_RUNBOOK.md#gke-production).
 
 ## API summary
 

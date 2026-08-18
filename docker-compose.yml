@@ -1,48 +1,142 @@
-version: '3.8'
+# Local developer environment for the multi-tenant search SaaS platform.
+# See CONTRACT.md for the frozen cross-team topology/contract this file wires together.
+#
+# Quick start (data tier + Go search API only, always available today):
+#   docker compose up --build
+#
+# Full stack (also brings up control-plane + web) once Agent A / Agent D land
+# apps/control-plane/Dockerfile and apps/web/Dockerfile on main:
+#   docker compose --profile full up --build
+#
+# control-plane and web are gated behind the "full" profile because their
+# Dockerfiles do not exist on this branch yet (owned by Agent A and Agent D
+# respectively). The service definitions below are wired per CONTRACT.md so
+# that once those Dockerfiles land, `docker compose --profile full up --build`
+# brings up the entire stack with no further changes to this file.
 
 services:
-  meilisearch:
-    image: getmeili/meilisearch:v1.13
-    container_name: fashion-catalog-meilisearch
-    ports:
-      - "7700:7700"
+  postgres:
+    image: postgres:16-alpine
+    hostname: postgres
+    container_name: saas-postgres
     environment:
-      - MEILI_ENV=development
-      - MEILI_NO_ANALYTICS=true
+      POSTGRES_USER: ${POSTGRES_USER:-saas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-saas}
+      POSTGRES_DB: ${POSTGRES_DB:-saas}
+    ports:
+      - "5432:5432"
     volumes:
-      - meilisearch_data:/meili_data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7700/health"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-saas} -d ${POSTGRES_DB:-saas}"]
+      interval: 5s
       timeout: 3s
-      retries: 3
+      retries: 10
       start_period: 5s
     restart: unless-stopped
 
-  api:
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    container_name: saas-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.13
+    hostname: meilisearch
+    container_name: saas-meilisearch
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-}
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:7700/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  search-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: fashion-catalog-api
-    ports:
-      - "${SERVER_PORT:-8081}:${SERVER_PORT:-8081}"
-    env_file:
-      - .env
+    hostname: search-api
+    container_name: saas-search-api
     environment:
-      - GIN_MODE=${GIN_MODE:-debug}
-    volumes:
-      - sqlite_data:/app/data
+      SERVER_PORT: "8081"
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET:-dev-only-change-me}
     depends_on:
       meilisearch:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${SERVER_PORT:-8081}/api/me"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8081/api/me"]
       interval: 10s
       timeout: 3s
-      retries: 3
+      retries: 5
       start_period: 10s
+    restart: unless-stopped
+    # Internal-only per CONTRACT.md (never exposed publicly). No host port
+    # mapping is published; other containers reach it at http://search-api:8081.
+
+  # --- Requires apps/control-plane/Dockerfile (owned by Agent A) ---
+  control-plane:
+    profiles: ["full"]
+    build:
+      context: ./apps/control-plane
+      dockerfile: Dockerfile
+    hostname: control-plane
+    container_name: saas-control-plane
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-saas}:${POSTGRES_PASSWORD:-saas}@postgres:5432/${POSTGRES_DB:-saas}
+      REDIS_URL: redis://redis:6379
+      SEARCH_API_URL: http://search-api:8081
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      ALLOWED_SIGNUP_EMAILS: ${ALLOWED_SIGNUP_EMAILS:-@e2e.test}
+      FREE_SEARCH_LIMIT: ${FREE_SEARCH_LIMIT:-30}
+      PRO_SEARCH_LIMIT: ${PRO_SEARCH_LIMIT:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      search-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --- Requires apps/web/Dockerfile (owned by Agent D) ---
+  web:
+    profiles: ["full"]
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    hostname: web
+    container_name: saas-web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    depends_on:
+      - control-plane
     restart: unless-stopped
 
 volumes:
+  postgres_data:
   meilisearch_data:
-  sqlite_data:

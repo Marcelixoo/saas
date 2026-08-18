@@ -2,6 +2,8 @@ module mini-search-platform
 
 go 1.24.5
 
+toolchain go1.25.13
+
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/gin-contrib/cors v1.7.6

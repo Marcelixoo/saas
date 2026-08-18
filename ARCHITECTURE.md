@@ -181,12 +181,16 @@ maturity — see `README.md` and `docs/SUBMISSION_RUNBOOK.md` for details:
    submission. Treat this overlay as a documented intent, not a verified
    deployment.
 
-There is also a legacy `Dockerfile` (repo root) + `.github/workflows/deploy-gcp.yml`
-that predate the multi-tenant platform: they build and deploy only the Go
-service as a standalone Cloud Run app (no control-plane, no web, no
-tenancy). That pipeline is not part of this submission's deployment story —
-it is left in place from the project's earlier phase and documented here so
-it isn't mistaken for the current deployment path.
+There was also a legacy `.github/workflows/deploy-gcp.yml` (plus a
+top-level `terraform/` directory) predating the multi-tenant platform: it
+built and deployed only the Go service as a standalone Cloud Run app (no
+control-plane, no web, no tenancy). Both have been **removed** now that
+GKE is the agreed production path — see `infra/terraform/` (cluster/registry
+provisioning) and `.github/workflows/deploy-gke.yml` (CD pipeline), which
+deploy the full multi-service topology instead of a single public Go
+service. The root `Dockerfile` remains (used by `docker-compose.yml` and
+`infra/docker/search-api.Dockerfile`'s local-dev variant), it is just no
+longer paired with a Cloud Run deploy step.
 
 ## 9. CI/CD
 
@@ -197,7 +201,12 @@ it isn't mistaken for the current deployment path.
 | `web-ci.yml` | `apps/web/**` — lint, `next build` | Yes |
 | `acceptance-e2e.yml` | Playwright system tests (`tests/e2e/**`) | **No — `continue-on-error: true`, informational only** |
 | `main.yml` (`AI Code Review`) | Legacy third-party PR review action from the project's earlier phase | Not part of this submission's gating |
-| `deploy-gcp.yml` | Legacy standalone Cloud Run deploy of the Go service only | Not part of this submission's deployment story (see §8) |
+| `k8s-manifests-lint.yml` | Renders `infra/k8s/overlays/{local,gke}` with `kubectl kustomize`, no cluster needed | Informational (`continue-on-error: true`) |
+| `deploy-gke.yml` | GKE CD: builds/pushes images, deploys `infra/k8s/overlays/gke` via WIF | Skips until GCP repo variables are configured (see §8, `infra/terraform/README.md`) |
+
+The standalone Cloud Run pipeline (`deploy-gcp.yml`) and its `terraform/`
+directory from the project's earlier, single-service phase have been
+removed — see §8.
 
 The acceptance suite (`acceptance-e2e.yml`) is deliberately non-blocking: it
 was authored before the platform existed (see its own header comment) and

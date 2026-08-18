@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { runId, E2E_EMAIL, E2E_PASSWORD } from './helpers';
+import { runId, uniqueEmail, E2E_PASSWORD } from './helpers';
 
 /**
  * Acceptance Test A — Onboarding & search, exercised THROUGH THE BROWSER UI.
@@ -14,10 +14,11 @@ import { runId, E2E_EMAIL, E2E_PASSWORD } from './helpers';
 test('assessor onboards through the UI and searches a seeded catalog', async ({ page }) => {
   const id = runId();
   const orgName = `Acme Shop ${id}`;
+  const email = uniqueEmail(); // fresh, allow-listable identity per run
 
   // 1-3. Register + authenticate via the UI.
   await page.goto('/');
-  await page.getByTestId('signup-email').fill(E2E_EMAIL);
+  await page.getByTestId('signup-email').fill(email);
   await page.getByTestId('signup-password').fill(E2E_PASSWORD);
   await page.getByTestId('signup-submit').click();
 

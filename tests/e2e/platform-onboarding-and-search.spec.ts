@@ -59,4 +59,12 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
   await page.getByTestId('nav-metrics').click();
   await expect(page.getByTestId('usage-search-count')).toBeVisible();
   await expect(page.getByTestId('usage-search-count')).not.toHaveText('0');
+
+  // 10. Regression: "Documents indexed" must reflect the live catalog total
+  // (hundreds of seeded products), NOT a count of seed *operations* (the
+  // sample catalog is seeded in a handful of chunked batch requests, so a
+  // stale "operation count" reading would show a tiny number like 1-3
+  // instead of the real document total).
+  const indexedText = await page.getByTestId('usage-index-count').innerText();
+  expect(Number(indexedText)).toBeGreaterThan(100);
 });

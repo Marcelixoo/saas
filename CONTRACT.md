@@ -121,6 +121,19 @@ Response `200`: `{ "id", "name", "slug", "plan" }` (slug is stable; only the nam
 window is present, zero-filled. `search` counts successful searches (`statusCode < 400`),
 `rateLimited` counts `429`s, `index` counts successful INDEX ops.
 
+`GET /organizations/:slug/usage/timeseries?window=1h|3h|24h|7d` — fine-grained mode for
+short time ranges (line-chart friendly). Mutually exclusive with `days`/`?window=` takes
+priority when both are present. Bucket resolution per window: `1h` → 12 × 5-minute
+buckets, `3h` → 12 × 15-minute buckets, `24h` → 24 × 1-hour buckets, `7d` → 7 × 1-day
+buckets. Response `200`:
+```json
+{ "organizationId": "<uuid>", "window": "1h",
+  "points": [ { "ts": "2026-08-18T21:05:00.000Z", "search": 3, "index": 0, "rateLimited": 0 } ] }
+```
+`points` is ascending by `ts` (ISO 8601, bucket start) and dense — every bucket in the
+window is present, zero-filled. Same `search`/`index`/`rateLimited` counting rules as the
+`days` mode. An invalid `window` value is `400`.
+
 `GET /organizations/:slug/search` (Agent B) — accepts `q` (required) plus optional
 `filter` (Meilisearch filter expression), `sort` (comma-separated, e.g. `price:asc`),
 `limit`, `offset`, and `facets` (comma-separated fields). Response `200`:
@@ -224,7 +237,8 @@ nav-metrics   nav-search   nav-catalog   nav-members   nav-upgrade   nav-setting
 # topbar (always visible)
 plan-badge          seed-catalog        refresh-data
 # Metrics section
-usage-search-count  usage-rate-limit-count   metrics-chart
+usage-search-count  usage-rate-limit-count   usage-index-count   metrics-chart
+metrics-range-toggle
 # Search section
 search-input   search-submit   search-results   search-hit   search-hit-price
 search-hit-score   search-sort    search-facet-<field>
@@ -243,6 +257,14 @@ plan chip inside the topbar Plan button (opens Settings).
 `search-results` container renders one child (`search-hit`) per hit; each hit
 exposes its title as text so Playwright can assert presence/absence, and its
 price via `search-hit-price`.
+
+`usage-index-count` ("Documents indexed") is the LIVE catalog document total
+(same source as `/organizations/:slug/documents`'s `total`, i.e. `useCatalog`),
+never `usage.indexCount` (a count of successful INDEX *operations*, e.g. seed
+batches — a single seed request can index hundreds of documents in one
+operation, so the two numbers are not interchangeable). `metrics-range-toggle`
+selects the usage-timeseries window (`1h`/`3h`/`24h`/`7d`) driving the
+`metrics-chart` line chart (see §3's `?window=` mode).
 
 ## 8. Acceptance environment variables
 

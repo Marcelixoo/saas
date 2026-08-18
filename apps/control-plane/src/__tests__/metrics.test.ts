@@ -118,6 +118,110 @@ describe('metrics', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('buckets a 1h window into 12 five-minute points', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const { id: organizationId, slug } = await createOrg(token);
+
+    // Same instant for all 4 events so they always land in the same 5-minute
+    // bucket regardless of exactly where the grid boundary falls relative to
+    // "now" (bucket boundaries are aligned to the bucket grid, not to "now").
+    const sameInstant = new Date(Date.now() - 60_000);
+    await ctx.prisma.usageEvent.createMany({
+      data: [
+        { organizationId, operation: 'SEARCH', statusCode: 200, createdAt: sameInstant },
+        { organizationId, operation: 'SEARCH', statusCode: 200, createdAt: sameInstant },
+        { organizationId, operation: 'SEARCH', statusCode: 429, createdAt: sameInstant },
+        { organizationId, operation: 'INDEX', statusCode: 202, createdAt: sameInstant },
+      ],
+    });
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${slug}/usage/timeseries?window=1h`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    expect(body.organizationId).toBe(organizationId);
+    expect(body.window).toBe('1h');
+    expect(body.points).toHaveLength(12);
+
+    const timestamps = body.points.map((p: { ts: string }) => p.ts);
+    expect(timestamps).toEqual([...timestamps].sort());
+    expect(new Set(timestamps).size).toBe(12);
+
+    const total = body.points.reduce(
+      (acc: number, p: { search: number; index: number; rateLimited: number }) =>
+        acc + p.search + p.index + p.rateLimited,
+      0,
+    );
+    expect(total).toBe(4);
+    // All 4 events landed in a single 5-minute bucket.
+    const nonEmpty = body.points.filter(
+      (p: { search: number; index: number; rateLimited: number }) =>
+        p.search + p.index + p.rateLimited > 0,
+    );
+    expect(nonEmpty).toHaveLength(1);
+    expect(nonEmpty[0]).toMatchObject({ search: 2, index: 1, rateLimited: 1 });
+  });
+
+  it('buckets a 3h window into 12 fifteen-minute points and a 24h window into 24 hourly points', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const { slug } = await createOrg(token);
+
+    const res3h = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${slug}/usage/timeseries?window=3h`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res3h.statusCode).toBe(200);
+    const body3h = JSON.parse(res3h.body);
+    expect(body3h.window).toBe('3h');
+    expect(body3h.points).toHaveLength(12);
+    for (const point of body3h.points) {
+      expect(point).toMatchObject({ search: 0, index: 0, rateLimited: 0 });
+      expect(typeof point.ts).toBe('string');
+    }
+
+    const res24h = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${slug}/usage/timeseries?window=24h`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res24h.statusCode).toBe(200);
+    const body24h = JSON.parse(res24h.body);
+    expect(body24h.window).toBe('24h');
+    expect(body24h.points).toHaveLength(24);
+  });
+
+  it('buckets a 7d window into 7 one-day points', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const { slug } = await createOrg(token);
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${slug}/usage/timeseries?window=7d`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.window).toBe('7d');
+    expect(body.points).toHaveLength(7);
+  });
+
+  it('rejects an invalid window value with 400', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const { slug } = await createOrg(token);
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: `/organizations/${slug}/usage/timeseries?window=5m`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('clamps out-of-range days into [1, 90]', async () => {
     const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
     const { slug } = await createOrg(token);

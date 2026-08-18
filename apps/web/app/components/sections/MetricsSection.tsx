@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { ChartCard } from '@/components/ui/chart-card';
 import { LegendItem } from '@/components/ui/legend-item';
+import { LineChart } from '@/components/ui/line-chart';
 import { RangeToggle } from '@/components/ui/range-toggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
+import type { UsageWindow } from '@/lib/api';
 import { useActiveOrg } from '@/lib/hooks/useActiveOrg';
 import { useCatalog } from '@/lib/hooks/useCatalog';
 import { useUsage } from '@/lib/hooks/useUsage';
@@ -15,27 +17,57 @@ import { PageHeader } from './sections';
 
 const CHART_HEIGHT_PX = 128;
 
-const RANGE_OPTIONS = [
-  { value: '7', label: '7D' },
-  { value: '14', label: '14D' },
-  { value: '30', label: '30D' },
+const RANGE_OPTIONS: { value: UsageWindow; label: string }[] = [
+  { value: '1h', label: '1H' },
+  { value: '3h', label: '3H' },
+  { value: '24h', label: '24H' },
+  { value: '7d', label: '7D' },
 ];
+
+const RANGE_NOW_LABEL: Record<UsageWindow, string> = {
+  '1h': 'last 1 hour',
+  '3h': 'last 3 hours',
+  '24h': 'last 24 hours',
+  '7d': 'last 7 days',
+};
+
+/** `HH:MM` for sub-day windows, `Mon DD` for the 7-day window (UTC). */
+function formatBucketLabel(ts: string, usageWindow: UsageWindow): string {
+  const date = new Date(ts);
+  if (usageWindow === '7d') {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  });
+}
 
 /**
  * Metrics section: real usage KPIs (searches, documents indexed, rate-limited,
- * error rate) with per-series sparklines, plus a per-day request-volume chart.
- * Layout follows the .pen console (page header + range toggle + KPI row + chart).
+ * error rate) with per-series sparklines, plus a request-volume line chart
+ * over a selectable window (1h/3h/24h/7d, bucketed server-side at a
+ * resolution appropriate to the window). Layout follows the .pen console
+ * (page header + range toggle + KPI row + chart).
  */
 export default function MetricsSection() {
   const { selectedOrg } = useActiveOrg();
   const slug = selectedOrg?.slug ?? null;
-  const [days, setDays] = useState('14');
+  const [usageWindow, setUsageWindow] = useState<UsageWindow>('24h');
 
   const { usage } = useUsage(slug);
-  const { points, isLoading: isChartLoading } = useUsageTimeseries(slug, Number(days));
-  // The "Documents indexed" KPI reflects the CURRENT number of documents in the
-  // tenant index (the same source of truth as the Catalog page), not the
-  // lifetime count of index operations — so Metrics and Catalog always agree.
+  const { points, isLoading: isChartLoading } = useUsageTimeseries(slug, usageWindow);
+  // The "Documents indexed" KPI must reflect the CURRENT number of documents
+  // in the tenant index (the same source of truth as the Catalog/Search
+  // pages), not `usage.indexCount` — which only counts successful INDEX API
+  // *operations* (e.g. seed batches), not documents. Those two numbers can
+  // legitimately differ a lot: a single seed request indexing hundreds of
+  // documents is still just one INDEX operation. Rendering `indexCount`
+  // instead of this catalog total was the root cause of "Documents indexed"
+  // (operation count) disagreeing with the Search tab's result count
+  // (document count) for the same organization.
   const { total: documentCount } = useCatalog(slug, { offset: 0, limit: 1 });
 
   if (!selectedOrg) {
@@ -49,7 +81,6 @@ export default function MetricsSection() {
 
   const searchCount = usage?.searchCount ?? 0;
   const rateLimited = usage?.rateLimitedCount ?? 0;
-  const indexCount = usage?.indexCount ?? 0;
   const attempted = searchCount + rateLimited;
   const errorRate = attempted > 0 ? (rateLimited / attempted) * 100 : 0;
 
@@ -57,11 +88,12 @@ export default function MetricsSection() {
   const indexSpark = points.map((p) => p.index);
   const rateLimitedSpark = points.map((p) => p.rateLimited);
 
-  const maxDailyTotal = points.reduce(
+  const maxTotal = points.reduce(
     (max, point) => Math.max(max, point.search + point.index + point.rateLimited),
     0,
   );
-  const hasActivity = maxDailyTotal > 0;
+  const hasActivity = maxTotal > 0;
+  const pointLabels = points.map((p) => formatBucketLabel(p.ts, usageWindow));
 
   const chartBody = isChartLoading ? (
     <Skeleton className="w-full" style={{ height: `${CHART_HEIGHT_PX}px` }} />
@@ -71,23 +103,20 @@ export default function MetricsSection() {
       description="Search and indexing activity will appear here once this organization starts making requests."
     />
   ) : (
-    <div
-      className="flex w-full items-end gap-1"
-      style={{ height: `${CHART_HEIGHT_PX}px` }}
-      data-testid="metrics-chart"
-    >
-      {points.map((point) => {
-        const searchHeight = (point.search / maxDailyTotal) * 100;
-        const indexHeight = (point.index / maxDailyTotal) * 100;
-        const rateLimitedHeight = (point.rateLimited / maxDailyTotal) * 100;
-        return (
-          <div key={point.date} className="flex h-full w-full flex-col justify-end gap-px" title={point.date}>
-            <span className="w-full rounded-t-sm bg-crit opacity-80" style={{ height: `${rateLimitedHeight}%` }} />
-            <span className="w-full bg-chart-series-2 opacity-80" style={{ height: `${indexHeight}%` }} />
-            <span className="w-full bg-chart-p50 opacity-80" style={{ height: `${searchHeight}%` }} />
-          </div>
-        );
-      })}
+    <div data-testid="metrics-chart">
+      <LineChart
+        height={CHART_HEIGHT_PX}
+        pointLabels={pointLabels}
+        series={[
+          { values: searchSpark, color: 'var(--chart-p50)' },
+          { values: indexSpark, color: 'var(--chart-series-2)' },
+          { values: rateLimitedSpark, color: 'var(--crit)' },
+        ]}
+      />
+      <div className="mt-1.5 flex justify-between font-mono text-[10px] text-ink-faint">
+        <span>{pointLabels[0]}</span>
+        <span>{pointLabels[pointLabels.length - 1]}</span>
+      </div>
     </div>
   );
 
@@ -98,9 +127,10 @@ export default function MetricsSection() {
         description="Search and indexing activity for this organization."
         actions={
           <RangeToggle
+            data-testid="metrics-range-toggle"
             options={RANGE_OPTIONS}
-            value={days}
-            onValueChange={setDays}
+            value={usageWindow}
+            onValueChange={(value) => setUsageWindow(value as UsageWindow)}
             aria-label="Metrics time range"
           />
         }
@@ -112,7 +142,11 @@ export default function MetricsSection() {
           value={<span data-testid="usage-search-count">{searchCount}</span>}
           sparkline={searchSpark}
         />
-        <KpiCard label="Documents indexed" value={indexCount} sparkline={indexSpark} />
+        <KpiCard
+          label="Documents indexed"
+          value={<span data-testid="usage-index-count">{documentCount}</span>}
+          sparkline={indexSpark}
+        />
         <KpiCard
           label="Rate-limited"
           value={<span data-testid="usage-rate-limit-count">{rateLimited}</span>}
@@ -131,7 +165,7 @@ export default function MetricsSection() {
 
       <ChartCard
         title="Request volume"
-        now={`last ${days} days`}
+        now={RANGE_NOW_LABEL[usageWindow]}
         full
         legend={
           <>

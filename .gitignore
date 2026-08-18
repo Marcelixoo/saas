@@ -53,3 +53,9 @@ node_modules/
 
 # Control plane build output (apps/control-plane)
 apps/control-plane/dist/
+
+# Preprocessed product catalog artifact (large; staged in GCS, not committed).
+# Regenerate with scripts/kaggle-preprocess.mjs (see data/README.md).
+data/catalog/catalog.json
+data/catalog/*.csv
+data/catalog/*.parquet

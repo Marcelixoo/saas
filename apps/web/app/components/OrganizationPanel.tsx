@@ -288,11 +288,45 @@ export default function OrganizationPanel({ token, onUnauthorized }: Props) {
             {hits !== null && hits.length === 0 && <p>No results found.</p>}
             <div data-testid="search-results" style={{ marginTop: '1rem' }}>
               {hits !== null &&
-                hits.map((hit) => (
-                  <div key={hit.id} data-testid="search-hit" style={{ padding: '0.25rem 0' }}>
-                    {String(hit.title)}
-                  </div>
-                ))}
+                hits.map((hit) => {
+                  const imageUrl = typeof hit.imageUrl === 'string' ? hit.imageUrl : null;
+                  const price = typeof hit.price === 'number' ? hit.price : null;
+                  return (
+                    <div
+                      key={hit.id}
+                      data-testid="search-hit"
+                      style={{
+                        display: 'flex',
+                        gap: '0.75rem',
+                        alignItems: 'center',
+                        padding: '0.4rem 0',
+                        borderBottom: '1px solid #eee',
+                      }}
+                    >
+                      {imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={imageUrl}
+                          alt={String(hit.title)}
+                          loading="lazy"
+                          style={{
+                            width: 48,
+                            height: 48,
+                            objectFit: 'contain',
+                            flexShrink: 0,
+                            background: '#fafafa',
+                          }}
+                        />
+                      )}
+                      <span style={{ flex: 1 }}>{String(hit.title)}</span>
+                      {price !== null && (
+                        <span data-testid="search-hit-price" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          ${price.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
 

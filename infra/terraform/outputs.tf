@@ -39,6 +39,11 @@ output "ingress_static_ip_name" {
   value       = var.reserve_ingress_static_ip ? google_compute_global_address.ingress[0].name : null
 }
 
+output "catalog_bucket" {
+  description = "Name of the private GCS bucket staging the preprocessed catalog + suggestions artifacts. Read via ADC/CI to seed the control-plane (see data/README.md)."
+  value       = google_storage_bucket.saas.name
+}
+
 output "secret_manager_secret_ids" {
   description = "Secret Manager secret IDs (names, not values) created for the gke overlay's saas-secrets Kubernetes Secret. .github/workflows/deploy-gke.yml reads the latest version of each at deploy time."
   value       = { for k, s in google_secret_manager_secret.saas : k => s.secret_id }

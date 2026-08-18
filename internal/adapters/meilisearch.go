@@ -18,11 +18,14 @@ var (
 
 // tenantSearchableAttrs / tenantFilterableAttrs / tenantSortableAttrs extend
 // the base article attribute set with product catalog fields (brand,
-// category) so seeded e-commerce catalogs are searchable/filterable too.
+// category, price) so seeded e-commerce catalogs are searchable, filterable,
+// and sortable. price is filterable + sortable (e.g. price ranges, low→high
+// ordering); imageUrl needs no entry here — it is stored and returned in hits
+// by default without being searchable/filterable.
 var (
 	tenantSearchableAttrs = []string{"title", "body", "author", "tags", "brand", "category"}
-	tenantFilterableAttrs = []interface{}{"author", "tags", "brand", "category"}
-	tenantSortableAttrs   = []string{"author", "title"}
+	tenantFilterableAttrs = []interface{}{"author", "tags", "brand", "category", "price"}
+	tenantSortableAttrs   = []string{"author", "title", "price"}
 )
 
 type MeilisearchEngine struct {

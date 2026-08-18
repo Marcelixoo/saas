@@ -38,3 +38,8 @@ output "ingress_static_ip_name" {
   description = "Name of the reserved global static IP resource, for the kubernetes.io/ingress.global-static-ip-name annotation."
   value       = var.reserve_ingress_static_ip ? google_compute_global_address.ingress[0].name : null
 }
+
+output "secret_manager_secret_ids" {
+  description = "Secret Manager secret IDs (names, not values) created for the gke overlay's saas-secrets Kubernetes Secret. .github/workflows/deploy-gke.yml reads the latest version of each at deploy time."
+  value       = { for k, s in google_secret_manager_secret.saas : k => s.secret_id }
+}

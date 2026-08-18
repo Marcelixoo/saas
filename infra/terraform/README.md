@@ -15,12 +15,13 @@ images, pushes them to the Artifact Registry repo created here, and runs
 
 | Resource | File | Purpose |
 |---|---|---|
-| API enablement | `apis.tf` | `container`, `artifactregistry`, `compute`, `iam`, `iamcredentials`, `serviceusage`, `cloudresourcemanager`, `sts` |
+| API enablement | `apis.tf` | `container`, `artifactregistry`, `compute`, `iam`, `iamcredentials`, `serviceusage`, `cloudresourcemanager`, `sts`, `secretmanager` |
 | Artifact Registry repo | `artifact_registry.tf` | Docker repo (default name `saas`) for web/control-plane/search-api images |
 | GKE Autopilot cluster | `gke.tf` | Regional Autopilot cluster with Workload Identity enabled |
 | Deploy service account | `wif.tf` | `roles/artifactregistry.writer` + `roles/container.developer` only |
 | Workload Identity Pool + Provider | `wif.tf` | OIDC trust restricted to `github_repository` (default `Marcelixoo/saas`) |
 | Global static IP (optional) | `networking.tf` | For a GCE-class ingress with a stable IP; toggle with `reserve_ingress_static_ip` |
+| Secret Manager secrets | `secrets.tf` | `saas-secrets` values (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`DATABASE_URL`/`JWT_SECRET`/`JWT_SECRET_KEY`/`MEILISEARCH_API_KEY`) — random where applicable — plus `secretAccessor` IAM for the deploy service account |
 
 Parameterized via variables (see `variables.tf` / `terraform.tfvars.example`):
 `project_id` (default `criticalmars-saas`), `region` (default
@@ -111,7 +112,11 @@ first time.
   reasonable and deliberate trade-off for now. Adding them later is
   additive (new `.tf` files + updating `DATABASE_URL`/`REDIS_URL` in the
   `gke` k8s overlay) and does not require re-architecting this module.
-- **Secrets.** This module does not create any GCP Secret Manager secrets
-  or Kubernetes secrets. Production secret handling for the GKE overlay
-  (`infra/k8s/overlays/gke`) and the CD pipeline are covered in a
-  follow-up PR and documented in `infra/README.md` once merged.
+- **Secrets.** `secrets.tf` provisions the `saas-secrets` values
+  (`POSTGRES_USER`, random `POSTGRES_PASSWORD`, derived `DATABASE_URL`,
+  random `JWT_SECRET`/`JWT_SECRET_KEY`/`MEILISEARCH_API_KEY`) as GCP Secret
+  Manager secrets and grants the deploy service account
+  `roles/secretmanager.secretAccessor` on each. `random_password` values
+  live only in Terraform state (git-excluded) and Secret Manager — never
+  in git. See `infra/k8s/overlays/gke/README.md` for how
+  `.github/workflows/deploy-gke.yml` materializes them into the cluster.

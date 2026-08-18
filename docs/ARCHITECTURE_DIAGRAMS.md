@@ -1,476 +1,133 @@
-# Fashion Catalog API - Architecture Diagrams
+# Multi-Tenant Search SaaS — Architecture
 
-## 1. GCP Cloud Architecture Diagram
-
-```mermaid
----
-config:
-  layout: elk
-  theme: base
----
-flowchart LR
-    subgraph Edge["Edge & DNS"]
-        n1["Vercel DNS"]
-        n2["Cloud Armor"]
-    end
-
-    subgraph Compute["Compute & Runtime"]
-        n3["Cloud Load Balancer"]
-        n4["Cloud Run"]
-        n5["VPC Connector"]
-    end
-
-    subgraph Data["Data & Storage"]
-        n6["Cloud SQL PostgreSQL"]
-        n7["Secret Manager"]
-        n8["Cloud Storage"]
-    end
-
-    subgraph Observability["Monitoring & Logs"]
-        n9["Cloud Logging"]
-        n10["Cloud Monitoring"]
-        n11["Cloud Trace"]
-    end
-
-    subgraph External["External Services"]
-        n12["GitHub Container Registry"]
-        n13["Meilisearch"]
-    end
-
-    Edge --> Compute
-    Compute --> Data
-    Compute --> Observability
-    External --> Compute
-
-    n1 --> n2
-    n2 --> n3
-    n3 --> n4
-    n4 --> n5
-    n5 --> n6
-    n4 --> n7
-    n4 --> n9
-    n4 --> n10
-    n4 --> n11
-    n6 --> n8
-    n12 --> n4
-    n4 --> n13
-
-    n1@{ shape: cloud, label: "Vercel DNS<br/>api.yourdomain.com" }
-    n2@{ shape: lean-r, label: "Cloud Armor<br/>DDoS Protection" }
-    n3@{ shape: lin-cyl, label: "Load Balancer" }
-    n4@{ shape: rect, label: "Cloud Run<br/>Min: 1, Max: 3<br/>512Mi, 1 vCPU" }
-    n5@{ shape: trap-b, label: "VPC Connector<br/>10.8.0.0/28" }
-    n6@{ shape: cyl, label: "Cloud SQL<br/>PostgreSQL 15<br/>Private IP" }
-    n7@{ shape: docs, label: "Secret Manager<br/>JWT & DB Creds" }
-    n8@{ shape: lin-cyl, label: "Cloud Storage<br/>Terraform State" }
-    n9@{ shape: doc, label: "Cloud Logging" }
-    n10@{ shape: notch-rect, label: "Cloud Monitoring" }
-    n11@{ shape: hex, label: "Cloud Trace" }
-    n12@{ shape: lin-cyl, label: "GitHub Container<br/>Registry" }
-    n13@{ shape: stadium, label: "Meilisearch" }
-```
-
-## 2. CI/CD Pipeline Diagram
-
-```mermaid
----
-config:
-  layout: elk
-  theme: base
----
-flowchart LR
-    subgraph Left["Development & Build"]
-        direction TB
-        p1["Developer"]
-        p2["Local Testing"]
-        p3["GitHub"]
-        p4["Code Review"]
-        p5["Checkout"]
-        p6["Unit Tests"]
-        p7["Coverage"]
-        p1 --> p2
-        p2 --> p3
-        p3 --> p4
-        p4 --> p5
-        p5 --> p6
-        p6 --> p7
-    end
-
-    subgraph Middle["Container & Deploy"]
-        direction TB
-        p8["Docker Build"]
-        p9["Security Scan"]
-        p10["Push GHCR"]
-        p11["Auth GCP"]
-        p12["Load Secrets"]
-        p8 --> p9
-        p9 --> p10
-        p10 --> p11
-        p11 --> p12
-    end
-
-    subgraph Right["Verify & Production"]
-        direction TB
-        p13["Deploy Cloud Run"]
-        p14["Health Check"]
-        p15["Integration Tests"]
-        p16["Smoke Tests"]
-        p17["Live Service"]
-        p18["Monitoring"]
-        p13 --> p14
-        p14 --> p15
-        p15 --> p16
-        p16 --> p17
-        p17 --> p18
-    end
-
-    subgraph Rollback["Rollback"]
-        direction TB
-        p19["Failure Detection"]
-        p20["Auto Rollback"]
-        p19 --> p20
-    end
-
-    Left --> Middle
-    Middle --> Right
-    p7 --> p8
-    p12 --> p13
-    p14 -.->|Fail| p19
-    p15 -.->|Fail| p19
-    p16 -.->|Fail| p19
-    p20 -.-> p18
-
-    p1@{ shape: circle, label: "Developer" }
-    p2@{ shape: stadium, label: "Local Testing<br/>docker-compose" }
-    p3@{ shape: rect, label: "GitHub<br/>Main Branch" }
-    p4@{ shape: hex, label: "Code Review" }
-    p5@{ shape: rect, label: "Checkout Code" }
-    p6@{ shape: rect, label: "Unit Tests<br/>go test ./..." }
-    p7@{ shape: rect, label: "Coverage 80%+" }
-    p8@{ shape: rect, label: "Docker Build<br/>Multi-stage" }
-    p9@{ shape: hex, label: "Security Scan" }
-    p10@{ shape: cyl, label: "Push GHCR" }
-    p11@{ shape: trap-b, label: "Auth GCP" }
-    p12@{ shape: docs, label: "Load Secrets" }
-    p13@{ shape: rect, label: "Deploy Cloud Run" }
-    p14@{ shape: diam, label: "Health Check" }
-    p15@{ shape: diam, label: "Integration Tests" }
-    p16@{ shape: diam, label: "Smoke Tests" }
-    p17@{ shape: stadium, label: "Live Service<br/>api.yourdomain.com" }
-    p18@{ shape: notch-rect, label: "Monitoring & Alerts" }
-    p19@{ shape: hex, label: "Failure Detection" }
-    p20@{ shape: lean-l, label: "Auto Rollback" }
-```
-
-## 3. Detailed CI/CD Pipeline Flow
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant GH as GitHub
-    participant GA as GitHub Actions
-    participant GHCR as GitHub Container Registry
-    participant GCP as Google Cloud Platform
-    participant CR as Cloud Run
-    participant SQL as Cloud SQL
-    participant SM as Secret Manager
-
-    Dev->>GH: git push origin main
-    GH->>GA: Trigger workflow
-
-    Note over GA: Build Phase
-    GA->>GA: Checkout code
-    GA->>GA: Setup Go 1.24
-    GA->>GA: Run go test ./...
-    GA->>GA: Check coverage > 80%
-
-    Note over GA: Container Phase
-    GA->>GA: Build Docker image
-    GA->>GA: Security scan
-    GA->>GHCR: Push image (latest, sha)
-
-    Note over GA,GCP: Deploy Phase
-    GA->>GCP: Authenticate with SA key
-    GA->>SM: Fetch JWT_SECRET_KEY
-    GA->>SM: Fetch DATABASE_URL
-
-    GA->>CR: Deploy new revision
-    CR->>GHCR: Pull Docker image
-    CR->>SQL: Establish connection
-    CR->>CR: Start container
-
-    Note over GA,CR: Testing Phase
-    GA->>CR: Health check GET /api
-    CR-->>GA: 200 OK
-    GA->>CR: Test GET /docs
-    CR-->>GA: 200 OK
-
-    Note over GA,CR: Traffic Management
-    GA->>CR: Update traffic 100% to new
-    CR->>CR: Gradual rollout
-
-    alt Deployment Success
-        GA->>Dev: ✅ Deployment successful
-        CR->>GCP: Send metrics
-    else Deployment Failure
-        GA->>CR: Rollback to previous
-        CR->>CR: Route to old revision
-        GA->>Dev: ❌ Deployment failed
-    end
-```
-
-## 4. Data Flow Diagram
-
-```mermaid
-graph TD
-    subgraph Client["Client Layer"]
-        Browser["Web Browser"]
-        Mobile["Mobile App"]
-        API["API Client"]
-    end
-
-    subgraph EdgeLayer["Edge Layer"]
-        DNS["Vercel DNS"]
-        CDN["Cloud CDN"]
-    end
-
-    subgraph ApplicationLayer["Application Layer"]
-        CloudRun["Cloud Run<br/>Go Application"]
-        RateLimit["Rate Limiter<br/>60 req/min"]
-        Auth["JWT Auth<br/>Middleware"]
-        Router["Gin Router"]
-    end
-
-    subgraph BusinessLayer["Business Logic"]
-        Handlers["HTTP Handlers"]
-        Services["Services Layer"]
-        Repositories["Repository Layer"]
-    end
-
-    subgraph DataLayer["Data Layer"]
-        PostgreSQL["Cloud SQL<br/>PostgreSQL"]
-        Search["Meilisearch<br/>Search Engine"]
-        Cache["In-Memory Cache"]
-    end
-
-    subgraph SecurityLayer["Security"]
-        Secrets["Secret Manager"]
-        IAM["IAM & Service Accounts"]
-        Encryption["Encryption at Rest"]
-    end
-
-    Browser --> DNS
-    Mobile --> DNS
-    API --> DNS
-    DNS --> CDN
-    CDN --> CloudRun
-
-    CloudRun --> RateLimit
-    RateLimit --> Auth
-    Auth --> Router
-    Router --> Handlers
-
-    Handlers --> Services
-    Services --> Repositories
-
-    Repositories --> PostgreSQL
-    Repositories --> Search
-    Repositories --> Cache
-
-    CloudRun --> Secrets
-    PostgreSQL --> Encryption
-    IAM -.-> CloudRun
-    IAM -.-> PostgreSQL
-
-    style Browser fill:#e1f5ff
-    style CloudRun fill:#4285f4,color:#fff
-    style PostgreSQL fill:#4285f4,color:#fff
-    style Secrets fill:#fbbc04,color:#000
-    style Auth fill:#ea4335,color:#fff
-```
-
-## 5. Deployment Infrastructure Map
-
-```mermaid
-graph TB
-    subgraph Region["us-central1 Region"]
-        subgraph Zone1["Zone A"]
-            CR1["Cloud Run<br/>Instance 1"]
-            SQL1["Cloud SQL<br/>Primary"]
-        end
-
-        subgraph Zone2["Zone B"]
-            CR2["Cloud Run<br/>Instance 2"]
-            SQL2["Cloud SQL<br/>Standby"]
-        end
-
-        subgraph Zone3["Zone C"]
-            CR3["Cloud Run<br/>Instance 3"]
-        end
-    end
-
-    subgraph GlobalResources["Global Resources"]
-        LB["Global Load Balancer"]
-        CDN["Cloud CDN"]
-        DNS["Cloud DNS"]
-    end
-
-    subgraph Backup["Backup & DR"]
-        AutoBackup["Automated Backups<br/>Daily"]
-        PITR["Point-in-Time Recovery<br/>7 days"]
-        MultiRegion["Multi-Region Replication<br/>Optional"]
-    end
-
-    DNS --> LB
-    LB --> CDN
-    CDN --> CR1
-    CDN --> CR2
-    CDN --> CR3
-
-    CR1 --> SQL1
-    CR2 --> SQL1
-    CR3 --> SQL1
-
-    SQL1 -.->|Replication| SQL2
-    SQL1 --> AutoBackup
-    SQL1 --> PITR
-    AutoBackup -.-> MultiRegion
-
-    style LB fill:#4285f4,color:#fff
-    style SQL1 fill:#4285f4,color:#fff
-    style SQL2 fill:#aecbfa
-    style AutoBackup fill:#34a853,color:#fff
-```
-
-## 6. Security Architecture
-
-```mermaid
-graph LR
-    subgraph PublicInternet["🌐 Public Internet"]
-        User["Users"]
-    end
-
-    subgraph SecurityPerimeter["🔒 Security Perimeter"]
-        CloudArmor["Cloud Armor<br/>DDoS Protection"]
-        IAP["Identity-Aware Proxy<br/>Optional"]
-        Firewall["Cloud Firewall<br/>Rules"]
-    end
-
-    subgraph ApplicationSecurity["🛡️ Application Security"]
-        JWT["JWT Validation"]
-        RBAC["Role-Based Access<br/>admin/billing/member"]
-        RateLimit["Rate Limiting<br/>Per IP"]
-        InputVal["Input Validation"]
-    end
-
-    subgraph DataSecurity["🔐 Data Security"]
-        Encryption["Encryption at Rest<br/>AES-256"]
-        TLS["TLS 1.3<br/>In Transit"]
-        SecretMgr["Secret Manager<br/>Key Rotation"]
-        Backup["Encrypted Backups"]
-    end
-
-    subgraph NetworkSecurity["🌐 Network Security"]
-        PrivateIP["Private IP Only"]
-        VPCPerim["VPC Perimeter"]
-        ServiceMesh["Service Mesh<br/>Optional"]
-    end
-
-    subgraph Compliance["📋 Compliance"]
-        Audit["Cloud Audit Logs"]
-        AccessLogs["Access Logs"]
-        Monitoring["Security Monitoring"]
-    end
-
-    User --> CloudArmor
-    CloudArmor --> IAP
-    IAP --> Firewall
-    Firewall --> JWT
-
-    JWT --> RBAC
-    RBAC --> RateLimit
-    RateLimit --> InputVal
-
-    InputVal --> TLS
-    TLS --> Encryption
-    Encryption --> SecretMgr
-    SecretMgr --> Backup
-
-    Encryption --> PrivateIP
-    PrivateIP --> VPCPerim
-    VPCPerim --> ServiceMesh
-
-    ServiceMesh --> Audit
-    Audit --> AccessLogs
-    AccessLogs --> Monitoring
-
-    style CloudArmor fill:#ea4335,color:#fff
-    style JWT fill:#fbbc04,color:#000
-    style Encryption fill:#34a853,color:#fff
-    style PrivateIP fill:#4285f4,color:#fff
-```
+The platform runs in production on **GKE Autopilot** (`saas-gke`, region `europe-west3`,
+namespace `saas`) and is live at **https://web.criticalmars.me** (Admin UI) and
+**https://api.criticalmars.me** (control plane). Local development and the automated
+acceptance suite run the same services on docker-compose / k3d.
 
 ---
 
-## Diagram Descriptions
+## Runtime architecture
 
-### 1. GCP Cloud Architecture
-- **Purpose**: Shows the complete infrastructure layout on Google Cloud Platform
-- **Key Components**: Cloud Run, Cloud SQL, VPC networking, Secret Manager
-- **Highlights**: Private IP communication, multi-layer security, observability
+![Runtime topology: the browser reaches the GCE Ingress over HTTPS; the Ingress routes web.criticalmars.me to the Next.js web service and api.criticalmars.me to the Fastify control-plane. The control-plane calls the internal search-api (passing a trusted X-Tenant-ID), PostgreSQL via Prisma, and Redis; the search-api queries Meilisearch. The search-api, PostgreSQL, Redis and Meilisearch sit inside a trust boundary as ClusterIP-only services with no external route.](img/architecture-runtime.png)
 
-### 2. CI/CD Pipeline
-- **Purpose**: Illustrates the automated deployment flow from code to production
-- **Key Stages**: Build, Test, Container, Deploy, Verify, Rollback
-- **Highlights**: GitHub Actions automation, security scanning, health checks
+**Request path.** The browser loads the Admin UI from `web.criticalmars.me` and calls the
+control plane at `api.criticalmars.me`. Both hostnames resolve (A records) to the reserved
+global static IP **`136.68.233.26`**, fronted by a **GCE Ingress** that terminates a
+Google-managed TLS certificate and redirects HTTP→HTTPS.
 
-### 3. Detailed Pipeline Flow
-- **Purpose**: Sequence diagram showing interactions between components
-- **Key Interactions**: GitHub → Actions → GCP → Cloud Run
-- **Highlights**: Authentication flow, secret management, rollback strategy
+**Components.**
 
-### 4. Data Flow
-- **Purpose**: Shows how data moves through the system layers
-- **Key Layers**: Client → Edge → Application → Business → Data
-- **Highlights**: Request routing, authentication, data access patterns
+| Service | Tech | Port | Exposed by Ingress? | Role |
+|---|---|---|---|---|
+| `web` | Next.js Admin UI | 3000 | **Yes** — `web.criticalmars.me` | Operator/admin console (2 replicas) |
+| `control-plane` | Fastify (Node) | 8080 | **Yes** — `api.criticalmars.me` | Public API: auth (JWT + RBAC), org/tenant management, rate limiting, usage, search proxy (2 replicas) |
+| `search-api` | Go / Gin | 8081 | No — ClusterIP | Tenant-scoped search execution (2 replicas) |
+| `postgres` | PostgreSQL (StatefulSet) | 5432 | No — ClusterIP | Users, orgs, memberships, usage events |
+| `redis` | Redis | 6379 | No — ClusterIP | Rate-limit counters and usage tracking |
+| `meilisearch` | Meilisearch (StatefulSet) | 7700 | No — ClusterIP | Full-text/relevance index |
 
-### 5. Deployment Infrastructure
-- **Purpose**: Geographic distribution of resources
-- **Key Aspects**: Multi-zone deployment, high availability, backup strategy
-- **Highlights**: Auto-scaling, replication, disaster recovery
+**Trust boundary (multi-tenancy).** Only `web` and `control-plane` are bound to the Ingress;
+`search-api`, `postgres`, `redis`, and `meilisearch` are `ClusterIP` services with **no
+external route**. External callers never choose a tenant — the control plane authenticates the
+request and injects a **trusted `X-Tenant-ID`** header before calling `search-api`, which reads
+a per-tenant Meilisearch index named `tenant_<normalized-uuid>_articles`. A forged tenant
+header from the outside cannot reach the search tier because that tier is not routable from the
+Ingress.
 
-### 6. Security Architecture
-- **Purpose**: Comprehensive security controls at each layer
-- **Key Controls**: DDoS protection, JWT auth, encryption, audit logging
-- **Highlights**: Defense in depth, compliance, monitoring
-
----
-
-## Viewing Instructions
-
-These diagrams use **Mermaid** syntax and can be viewed:
-
-1. **GitHub**: Automatically renders in README.md and markdown files
-2. **VS Code**: Install "Markdown Preview Mermaid Support" extension
-3. **Online**: Paste code into https://mermaid.live/
-4. **Documentation Sites**: Works with GitBook, Docusaurus, MkDocs
-
-## Export Options
-
-To export as images:
-
-```bash
-# Install mermaid-cli
-npm install -g @mermaid-js/mermaid-cli
-
-# Convert to PNG
-mmdc -i docs/ARCHITECTURE_DIAGRAMS.md -o architecture.png
-
-# Convert to SVG
-mmdc -i docs/ARCHITECTURE_DIAGRAMS.md -o architecture.svg
-```
+**Data flow.** `control-plane` → `postgres` (via Prisma ORM) for relational state,
+`control-plane` → `redis` for rate-limit/usage counters, and `control-plane` → `search-api`
+for search; `search-api` → `meilisearch` for the actual query. The control plane's health probe
+is `GET /healthz`, and it applies database migrations (`prisma migrate deploy`) on startup.
 
 ---
 
-**Last Updated**: 2025-01-24
-**Version**: 1.0.0
+## Delivery pipeline (CI/CD)
+
+![CI/CD pipeline: a git push to main (or a v* tag or manual dispatch) triggers GitHub Actions deploy-gke.yml, which authenticates via Workload Identity Federation, builds and pushes the three images to Artifact Registry, syncs saas-secrets from Secret Manager, runs kubectl apply on the GKE overlay, then waits for rollout — automatically running rollout undo back to the last-good revision on failure.](img/architecture-cicd.png)
+
+**Trigger & gate.** A push to `main`, a `v*` tag, or a manual `workflow_dispatch` runs
+`.github/workflows/deploy-gke.yml`. A `check-config` gate requires 7 repository variables and
+**skips** (does not fail) the deploy if any are missing.
+
+**Steps.**
+1. **Authenticate** to Google Cloud via **Workload Identity Federation** — no long-lived
+   service-account key is ever stored.
+2. **Build & push** the three images (`web`, `control-plane`, `search-api`), each tagged with
+   the commit SHA, to **Artifact Registry** (`europe-west3-docker.pkg.dev/criticalmars-saas-505914/saas`).
+3. **Sync secrets** — read each value from **GCP Secret Manager** and materialize the
+   Kubernetes Secret `saas-secrets` (the Deployments consume it via `secretKeyRef`).
+4. **Deploy** — `kustomize edit set image` then `kubectl apply -k infra/k8s/overlays/gke`.
+5. **Wait for rollout with auto-rollback** — if any Deployment fails to become healthy, the job
+   runs `kubectl rollout undo` back to the last-good revision, re-verifies it, and fails the
+   build, leaving the cluster on its last-good state.
+
+**What ships via CD vs. Terraform.** Application code **and** the database schema
+(`prisma migrate deploy` runs on control-plane startup) ship on a push to `main` — no manual
+`kubectl`. Infrastructure (the cluster, Artifact Registry, WIF, static IP, and Secret Manager
+secrets) is provisioned by **Terraform** in `infra/terraform/` and applied manually — infra
+changes are reviewed plans, not push-to-deploy.
+
+**Rollout safety.** Every Deployment has readiness + liveness probes and uses the default
+`RollingUpdate` strategy, so a broken release never becomes Ready and the previous ReplicaSet
+keeps serving (no downtime); the auto-rollback step then reverts the stuck rollout. Caveat:
+`rollout undo` reverts the pod template only (not ConfigMap/Secret changes), and forward DB
+migrations are not reverted — migrations must stay backward-compatible.
+
+---
+
+## Infrastructure (Terraform, `infra/terraform/`)
+
+Provisioned by Terraform and applied manually with Application Default Credentials:
+
+- **GKE Autopilot** cluster `saas-gke` (europe-west3).
+- **Artifact Registry** repository for the three service images.
+- **Workload Identity Federation** pool + provider, scoped to the `Marcelixoo/saas`
+  repository, bound to a **least-privilege deployer service account** (GKE deploy + Artifact
+  Registry push only).
+- **Global static IP** (`136.68.233.26`) for the Ingress.
+- **Secret Manager** secrets whose values are generated by `random_password` (never committed
+  to git; Terraform state is git-ignored), each granting the deployer SA per-secret
+  `roles/secretmanager.secretAccessor`.
+
+---
+
+## Security architecture
+
+- **Transport** — Google-managed TLS certificate at the Ingress; HTTP→HTTPS redirect via a
+  FrontendConfig.
+- **AuthN/AuthZ** — JWT authentication with role-based access control (admin / billing /
+  member) in the control plane.
+- **Tenant isolation** — the trust boundary above: internal services are `ClusterIP`-only, the
+  control plane injects a trusted `X-Tenant-ID`, and each tenant has its own search index.
+- **Rate limiting** — per-principal limits backed by Redis; fails closed on a Redis outage.
+- **Secrets** — GCP Secret Manager is the source of truth, materialized into the cluster at
+  deploy time; no plaintext secret values live in git.
+- **CI/CD trust** — Workload Identity Federation issues short-lived tokens per run (no
+  long-lived keys); the deployer service account is scoped to exactly what the deploy needs.
+
+---
+
+## At a glance
+
+- **Production**: GKE Autopilot · `saas-gke` · europe-west3 · namespace `saas`
+- **Public hosts**: `web.criticalmars.me`, `api.criticalmars.me` → `136.68.233.26`
+- **TLS**: Google-managed certificate · HTTP→HTTPS redirect
+- **Isolation**: 4 internal services `ClusterIP`-only; per-tenant search index; trusted `X-Tenant-ID`
+- **Secrets**: GCP Secret Manager → `saas-secrets` at deploy time
+- **Auth to GCP**: Workload Identity Federation — no long-lived keys
+- **Local/dev & acceptance**: docker-compose / k3d (`infra/k8s/overlays/local`); Playwright acceptance suite
+
+---
+
+## Regenerating the diagrams
+
+The two images above are rendered from self-contained HTML/SVG sources (hand-drawn style via an
+SVG turbulence filter, labels in the Kalam typeface). To regenerate, open the source in a
+browser and export, or screenshot at 2× for a crisp PNG. Source lives with the docs tooling; keep
+the PNGs in `docs/img/` in sync when the architecture changes.
+
+---
+
+**Last Updated**: 2026-08-18
+**Version**: 3.0.0

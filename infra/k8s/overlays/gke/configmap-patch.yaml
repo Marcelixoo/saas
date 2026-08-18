@@ -1,0 +1,14 @@
+# Production overrides for saas-config. Only the keys that differ from the
+# base (infra/k8s/base/configmap.yaml) are listed here — this is a
+# strategic-merge patch, so every other key (PORT, SEARCH_API_URL,
+# REDIS_URL, rate limits, etc.) is inherited unchanged from base.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: saas-config
+  namespace: saas
+data:
+  # CORS allowlist for the control-plane API: the real Admin UI origin.
+  CORS_ORIGINS: "https://web.criticalmars.me"
+  # Restrict signup to the operator's domain in production.
+  ALLOWED_SIGNUP_EMAILS: "@code.berlin"

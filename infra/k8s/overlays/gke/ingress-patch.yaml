@@ -2,10 +2,9 @@
 # infra/terraform, see the ingress_static_ip_name output — defaults to
 # "saas-ingress-ip"), and a GKE-managed cert (managed-certificate.yaml).
 #
-# TODO before applying: replace both host values below (and the domains in
-# managed-certificate.yaml) with your real DNS-controlled hostnames, and
-# point their DNS A records at the static IP reserved by
-# infra/terraform (`terraform output ingress_static_ip_address`).
+# Hostnames are criticalmars.me (operator-controlled): web.criticalmars.me
+# and api.criticalmars.me. Point their DNS A records at the static IP
+# reserved by infra/terraform (`terraform output ingress_static_ip_address`).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -18,7 +17,7 @@ metadata:
     networking.gke.io/v1beta1.FrontendConfig: saas-frontend-config
 spec:
   rules:
-    - host: web.YOUR_DOMAIN.example
+    - host: web.criticalmars.me
       http:
         paths:
           - path: /
@@ -28,7 +27,7 @@ spec:
                 name: web
                 port:
                   number: 3000
-    - host: api.YOUR_DOMAIN.example
+    - host: api.criticalmars.me
       http:
         paths:
           - path: /

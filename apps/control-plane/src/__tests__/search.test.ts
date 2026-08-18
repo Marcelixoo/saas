@@ -172,6 +172,31 @@ describe('search + usage + tenant trust', () => {
     });
   });
 
+  it('forwards reset=true to the search client so a re-seed rebuilds the index', async () => {
+    const { token } = await registerAndLogin(ctx, 'allowed@e2e.test');
+    const org = await createOrg(ctx, token);
+
+    const withReset = await ctx.app.inject({
+      method: 'POST',
+      url: `/organizations/${org.slug}/documents/batch?reset=true`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { documents: [{ id: 'sku-1', title: 'Red Nike Shoe' }] },
+    });
+    expect(withReset.statusCode).toBe(202);
+    expect(ctx.searchClient.calls.index).toHaveLength(1);
+    expect(ctx.searchClient.calls.index[0].reset).toBe(true);
+
+    const withoutReset = await ctx.app.inject({
+      method: 'POST',
+      url: `/organizations/${org.slug}/documents/batch`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { documents: [{ id: 'sku-2', title: 'Blue Nike Shoe' }] },
+    });
+    expect(withoutReset.statusCode).toBe(202);
+    expect(ctx.searchClient.calls.index).toHaveLength(2);
+    expect(ctx.searchClient.calls.index[1].reset).toBe(false);
+  });
+
   it('denies documents/batch for a plain MEMBER (OWNER/ADMIN only)', async () => {
     const owner = await registerAndLogin(ctx, 'allowed@e2e.test');
     const org = await createOrg(ctx, owner.token);

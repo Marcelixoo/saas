@@ -8,6 +8,7 @@ import { RangeToggle } from '@/components/ui/range-toggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useActiveOrg } from '@/lib/hooks/useActiveOrg';
+import { useCatalog } from '@/lib/hooks/useCatalog';
 import { useUsage } from '@/lib/hooks/useUsage';
 import { useUsageTimeseries } from '@/lib/hooks/useUsageTimeseries';
 import { PageHeader } from './sections';
@@ -32,6 +33,10 @@ export default function MetricsSection() {
 
   const { usage } = useUsage(slug);
   const { points, isLoading: isChartLoading } = useUsageTimeseries(slug, Number(days));
+  // The "Documents indexed" KPI reflects the CURRENT number of documents in the
+  // tenant index (the same source of truth as the Catalog page), not the
+  // lifetime count of index operations — so Metrics and Catalog always agree.
+  const { total: documentCount } = useCatalog(slug, { offset: 0, limit: 1 });
 
   if (!selectedOrg) {
     return (

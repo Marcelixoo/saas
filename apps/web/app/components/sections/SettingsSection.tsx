@@ -28,6 +28,13 @@ export default function SettingsSection() {
   const { trigger: renameOrg, isMutating: isRenaming } = useUpdateOrganization(slug);
 
   const [orgName, setOrgName] = useState('');
+  // Reset the in-progress rename when the active org changes, so a half-typed
+  // name never leaks across orgs. Adjust-state-during-render (no effect).
+  const [lastSlug, setLastSlug] = useState(selectedOrg?.slug);
+  if (selectedOrg?.slug !== lastSlug) {
+    setLastSlug(selectedOrg?.slug);
+    setOrgName('');
+  }
   const nameValue = orgName || selectedOrg?.name || '';
 
   async function handlePlanChange(plan: Plan) {

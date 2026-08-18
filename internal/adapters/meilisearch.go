@@ -27,6 +27,12 @@ var (
 	tenantSearchableAttrs = []string{"title", "body", "author", "tags", "brand", "category"}
 	tenantFilterableAttrs = []interface{}{"author", "tags", "brand", "category", "price"}
 	tenantSortableAttrs   = []string{"author", "title", "price"}
+	// tenantRankingRules move "sort" ahead of the relevancy rules (Meilisearch's
+	// default is words,typo,proximity,attribute,sort,exactness). With "sort"
+	// first, an explicit sort (e.g. price:asc) orders results globally rather
+	// than only breaking ties within equal-relevance groups; queries that don't
+	// request a sort are unaffected (the sort rule is inert without one).
+	tenantRankingRules = []string{"sort", "words", "typo", "proximity", "attribute", "exactness"}
 )
 
 type MeilisearchEngine struct {
@@ -197,6 +203,9 @@ func initTenantIndex(idx meilisearch.IndexManager, indexName string) error {
 	if _, err := idx.UpdateSortableAttributes(&tenantSortableAttrs); err != nil {
 		return err
 	}
+	if _, err := idx.UpdateRankingRules(&tenantRankingRules); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -245,6 +254,20 @@ func (e *MeilisearchEngine) IndexTenantDocuments(tenantID string, documents []se
 	return err
 }
 
+// DeleteAllTenantDocuments clears every document from the tenant's isolated
+// index without deleting the index itself, so its settings (filterable/sortable
+// attributes, facets) are preserved for the rebuild that follows. Meilisearch
+// processes an index's tasks in FIFO order, so enqueuing this before the
+// subsequent AddDocuments task yields a clean truncate-then-rebuild.
+func (e *MeilisearchEngine) DeleteAllTenantDocuments(tenantID string) error {
+	idx, err := e.tenantIndex(tenantID)
+	if err != nil {
+		return err
+	}
+	_, err = idx.DeleteAllDocuments()
+	return err
+}
+
 // SearchTenant searches within the tenant's isolated index. Unlike
 // IndexTenantDocuments, it deliberately does NOT go through tenantIndex to
 // lazily create the index: a search is a read, and a brand-new tenant that
@@ -260,6 +283,9 @@ func (e *MeilisearchEngine) SearchTenant(tenantID string, query string, options 
 		Offset: int64(options.Offset),
 		Filter: options.Filter,
 		Sort:   options.Sort,
+		// Return each hit's relevance score (0..1) as `_rankingScore` so the UI
+		// can show it and users can compare relevance ranking against sorts.
+		ShowRankingScore: true,
 	}
 	if options.Facets != "" {
 		req.Facets = splitAndTrim(options.Facets)

@@ -38,6 +38,9 @@ type TenantSearchResponse struct {
 type TenantSearchEngine interface {
 	SearchTenant(tenantID string, query string, options SearchOptions) (TenantSearchResponse, error)
 	IndexTenantDocuments(tenantID string, documents []TenantDocument) error
+	// DeleteAllTenantDocuments clears the tenant's index for a clean rebuild,
+	// preserving index settings. Enqueued before any following index task.
+	DeleteAllTenantDocuments(tenantID string) error
 }
 
 // NormalizeTenantID lowercases the org UUID and replaces '-' with '_', per

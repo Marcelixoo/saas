@@ -57,7 +57,11 @@ export interface CatalogListResult {
 
 export interface SearchApiClient {
   search(tenantId: string, query: string, opts?: SearchOptions): Promise<SearchResponse>;
-  indexBatch(tenantId: string, documents: BatchDocument[]): Promise<{ accepted: number }>;
+  indexBatch(
+    tenantId: string,
+    documents: BatchDocument[],
+    reset?: boolean,
+  ): Promise<{ accepted: number }>;
   listDocuments(tenantId: string, offset: number, limit: number): Promise<CatalogListResult>;
 }
 
@@ -100,10 +104,14 @@ export function createSearchApiClient(baseUrl: string = config.searchApiUrl): Se
       return JSON.parse(bodyText) as SearchResponse;
     },
 
-    async indexBatch(tenantId: string, documents: BatchDocument[]): Promise<{ accepted: number }> {
+    async indexBatch(
+      tenantId: string,
+      documents: BatchDocument[],
+      reset = false,
+    ): Promise<{ accepted: number }> {
       let res;
       try {
-        res = await request(`${baseUrl}/internal/documents/batch`, {
+        res = await request(`${baseUrl}/internal/documents/batch${reset ? '?reset=true' : ''}`, {
           method: 'POST',
           headers: { 'X-Tenant-ID': tenantId, 'content-type': 'application/json' },
           body: JSON.stringify({ documents }),

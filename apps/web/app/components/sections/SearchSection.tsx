@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useDeferredValue, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { ApiError, type SearchParams } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -26,12 +26,20 @@ import { PageHeader } from './sections';
 const PAGE_SIZE = 20;
 const FACET_FIELDS = ['category'];
 
-type SortDirection = 'asc' | 'desc';
+type SortMode = 'relevance' | 'price-asc' | 'price-desc';
+
+/** Maps a sort mode to the API `sort` param — relevance sends none, so the
+ * index's default relevancy ranking applies. */
+function sortFor(mode: SortMode): string[] | undefined {
+  if (mode === 'relevance') return undefined;
+  return [`price:${mode === 'price-asc' ? 'asc' : 'desc'}`];
+}
 
 /**
- * Search preview section: query panel with category facets, price sort, and a
- * results table (rank / product / brand / category / price), on top of the
- * shared `useSearch` SWR-mutation hook. Layout follows the .pen console.
+ * Search preview section: query panel with category facets, a three-way sort
+ * (relevance / price asc / price desc), and a results table (rank / product /
+ * brand / category / relevance score / price), on top of the shared `useSearch`
+ * SWR-mutation hook. Layout follows the .pen console.
  */
 export default function SearchSection() {
   const { selectedOrg } = useActiveOrg();
@@ -42,9 +50,8 @@ export default function SearchSection() {
   const { results, run, isSearching, error } = useSearch(slug);
 
   const [query, setQuery] = useState('');
-  const deferredQuery = useDeferredValue(query);
   const [category, setCategory] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<SortDirection>('asc');
+  const [sortMode, setSortMode] = useState<SortMode>('relevance');
   const [offset, setOffset] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -52,7 +59,7 @@ export default function SearchSection() {
     return {
       q: query,
       filter: category ? `category = "${category}"` : undefined,
-      sort: [`price:${sortDir}`],
+      sort: sortFor(sortMode),
       limit: PAGE_SIZE,
       offset,
       facets: FACET_FIELDS,
@@ -88,9 +95,9 @@ export default function SearchSection() {
     runSearch({ filter: nextCategory ? `category = "${nextCategory}"` : undefined, offset: 0 });
   }
 
-  function handleSortChange(nextSort: SortDirection) {
-    setSortDir(nextSort);
-    runSearch({ sort: [`price:${nextSort}`] });
+  function handleSortChange(nextMode: SortMode) {
+    setSortMode(nextMode);
+    runSearch({ sort: sortFor(nextMode) });
   }
 
   function handlePageChange(nextOffset: number) {
@@ -137,13 +144,14 @@ export default function SearchSection() {
             />
             <Select
               data-testid="search-sort"
-              aria-label="Sort by price"
-              value={sortDir}
-              onChange={(e) => handleSortChange(e.target.value as SortDirection)}
+              aria-label="Sort results"
+              value={sortMode}
+              onChange={(e) => handleSortChange(e.target.value as SortMode)}
               className="w-auto"
             >
-              <option value="asc">Price: low to high</option>
-              <option value="desc">Price: high to low</option>
+              <option value="relevance">Relevance</option>
+              <option value="price-asc">Price: low to high</option>
+              <option value="price-desc">Price: high to low</option>
             </Select>
             <Button variant="primary" type="submit" data-testid="search-submit" disabled={isSearching}>
               {isSearching ? <Spinner size="sm" label="Searching" /> : 'Search'}
@@ -184,6 +192,7 @@ export default function SearchSection() {
                   <TableHead>Product</TableHead>
                   <TableHead>Brand</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead className="w-32">Score</TableHead>
                   <TableHead className="text-right">Price</TableHead>
                 </TableRow>
               </TableHeader>
@@ -193,6 +202,7 @@ export default function SearchSection() {
                   const price = typeof hit.price === 'number' ? hit.price : null;
                   const brand = typeof hit.brand === 'string' ? hit.brand : null;
                   const category = typeof hit.category === 'string' ? hit.category : null;
+                  const score = typeof hit._rankingScore === 'number' ? hit._rankingScore : null;
                   return (
                     <TableRow key={hit.id} data-testid="search-hit">
                       <TableCell className="font-mono text-ink-faint tabular-nums">
@@ -214,6 +224,26 @@ export default function SearchSection() {
                       </TableCell>
                       <TableCell className="text-ink-muted">{brand ?? '—'}</TableCell>
                       <TableCell className="text-ink-muted">{category ?? '—'}</TableCell>
+                      <TableCell>
+                        {score !== null ? (
+                          <div className="flex items-center gap-2" title={`Relevance ${(score * 100).toFixed(1)}%`}>
+                            <span className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-2">
+                              <span
+                                className="block h-full rounded-full bg-primary"
+                                style={{ width: `${Math.round(score * 100)}%` }}
+                              />
+                            </span>
+                            <span
+                              data-testid="search-hit-score"
+                              className="font-mono text-[11px] tabular-nums text-ink-muted"
+                            >
+                              {(score * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-ink-faint">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {price !== null ? (
                           <span
@@ -265,7 +295,7 @@ export default function SearchSection() {
 
       {error ? (
         <p className="text-xs text-crit">
-          {deferredQuery ? `Search for "${deferredQuery}" failed.` : 'Search failed.'}
+          {query ? `Search for "${query}" failed.` : 'Search failed.'}
         </p>
       ) : null}
     </div>

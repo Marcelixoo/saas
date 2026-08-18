@@ -103,7 +103,10 @@ Response `200`: `{ "id", "name", "slug", "plan": "PRO" }`
 ```json
 { "documents": [ { "id": "sku-1", "title": "Red Nike Shoe", "brand": "Nike", "category": "shoes" } ] }
 ```
-Response `202`: `{ "accepted": 1 }`
+Response `202`: `{ "accepted": 1 }`. Optional query `?reset=true` truncates the
+tenant index before indexing this batch (a clean rebuild, preserving index
+settings), so a re-seed doesn't accumulate stale/duplicate documents. The web
+`seedCatalog` sets `reset=true` on the first chunk only.
 
 `PATCH /organizations/:slug` (Agent D) — request `{ "name": "New Name" }`;
 Response `200`: `{ "id", "name", "slug", "plan" }` (slug is stable; only the name changes).
@@ -164,7 +167,7 @@ Base URL (internal): `http://search-api:8081`. Tenant supplied via header.
 |--------|---------------------|-----------------|----------|
 | GET    | `/internal/search?q=...` | `X-Tenant-ID: <org-uuid>` | search that tenant's index; accepts `filter`, `sort`, `limit`, `offset`, `facets` (Agent B) |
 | GET    | `/internal/documents?offset=&limit=` | `X-Tenant-ID: <org-uuid>` | paginated listing of that tenant's docs (Agent C) |
-| POST   | `/internal/documents/batch` | `X-Tenant-ID: <org-uuid>` | index into that tenant's index |
+| POST   | `/internal/documents/batch` | `X-Tenant-ID: <org-uuid>` | index into that tenant's index; `?reset=true` truncates first |
 
 - `/internal/search` returns `{ query, hits, total }` and, when `facets` are
   requested, a `facetDistribution` map; `limit`/`offset` echo effective paging.
@@ -174,6 +177,10 @@ Base URL (internal): `http://search-api:8081`. Tenant supplied via header.
 - Missing/empty `X-Tenant-ID` -> `400`.
 - Index naming: `tenant_<normalized-org-uuid>_articles` (UUID lowercased, `-` -> `_`).
 - Index config (searchable/filterable/sortable) is lazily initialized per tenant.
+  Ranking rules put `sort` first (`sort, words, typo, proximity, attribute,
+  exactness`) so an explicit `sort` orders results globally rather than only as a
+  relevancy tie-breaker; unsorted queries are unaffected. `price` is filterable +
+  sortable.
 - Existing public Go routes may remain during migration but MUST NOT be exposed
   through Ingress in k8s.
 
@@ -215,12 +222,12 @@ organization-select
 # sidebar nav (client-side section switch)
 nav-metrics   nav-search   nav-catalog   nav-members   nav-upgrade   nav-settings
 # topbar (always visible)
-plan-badge          seed-catalog
+plan-badge          seed-catalog        refresh-data
 # Metrics section
 usage-search-count  usage-rate-limit-count   metrics-chart
 # Search section
 search-input   search-submit   search-results   search-hit   search-hit-price
-search-sort    search-facet-<field>
+search-hit-score   search-sort    search-facet-<field>
 # Catalog section
 catalog-seed-info   catalog-table   catalog-row   catalog-prev-page   catalog-next-page
 # Members section

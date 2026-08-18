@@ -97,6 +97,30 @@ func indexDocument(t *testing.T, r *gin.Engine, tenantID string, doc map[string]
 	}
 }
 
+// indexDocumentReset posts a batch with `?reset=true`, which truncates the
+// tenant index before indexing the given document.
+func indexDocumentReset(t *testing.T, r *gin.Engine, tenantID string, doc map[string]interface{}) {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]interface{}{
+		"documents": []map[string]interface{}{doc},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal batch payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/internal/documents/batch?reset=true", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(handlers.TenantIDHeader, tenantID)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 accepted, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func searchAsTenant(t *testing.T, r *gin.Engine, tenantID, query string) map[string]interface{} {
 	t.Helper()
 
@@ -415,6 +439,112 @@ func TestInternalDocumentsBatch_BodyAndTagsRoundTrip(t *testing.T) {
 	}
 	if !foundByTag {
 		t.Fatalf("timed out waiting for tag %q to become searchable, last result: %v", uniqueTag, byTag)
+	}
+}
+
+// TestInternalDocumentsBatch_ResetTruncatesIndex asserts that a batch sent with
+// `?reset=true` truncates the tenant index first: after re-seeding with reset,
+// documents from the previous seed are gone and only the new documents remain.
+func TestInternalDocumentsBatch_ResetTruncatesIndex(t *testing.T) {
+	r, _ := newTestRouter(t)
+
+	tenant := uuid.NewString()
+	oldTerm := fmt.Sprintf("Oldonium%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+	newTerm := fmt.Sprintf("Newtronic%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+
+	// First seed.
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-old-" + uuid.NewString(), "title": oldTerm + " Gadget",
+	})
+
+	// Wait for the first doc to become searchable.
+	found := false
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		res, ok := trySearchAsTenant(t, r, tenant, oldTerm)
+		if ok {
+			if hits, ok := res["hits"].([]interface{}); ok && len(hits) == 1 {
+				found = true
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !found {
+		t.Fatalf("timed out waiting for the first-seed document to become searchable")
+	}
+
+	// Re-seed with reset=true and a different document.
+	indexDocumentReset(t, r, tenant, map[string]interface{}{
+		"id": "sku-new-" + uuid.NewString(), "title": newTerm + " Gadget",
+	})
+
+	// The new doc must appear and the old one must disappear.
+	newFound := false
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		newRes, ok := trySearchAsTenant(t, r, tenant, newTerm)
+		if !ok {
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+		newHits, _ := newRes["hits"].([]interface{})
+		oldRes, _ := trySearchAsTenant(t, r, tenant, oldTerm)
+		oldHits, _ := oldRes["hits"].([]interface{})
+		if len(newHits) == 1 && len(oldHits) == 0 {
+			newFound = true
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !newFound {
+		t.Fatalf("expected reset to leave only the new document (old term gone, new term present)")
+	}
+}
+
+// TestInternalSearch_SortDominatesRelevance asserts the ranking-rule change:
+// an explicit sort orders results globally, not merely as a tie-breaker within
+// equal-relevance groups. A title with more term repetitions would rank first
+// under default relevancy, but price:asc must surface the cheapest hit first.
+func TestInternalSearch_SortDominatesRelevance(t *testing.T) {
+	r, _ := newTestRouter(t)
+
+	tenant := uuid.NewString()
+	term := fmt.Sprintf("Widgetron%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+
+	// More-relevant (term repeated) but expensive.
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-hi-" + uuid.NewString(), "title": term + " " + term + " " + term, "price": 99.0,
+	})
+	// Less-relevant (term once) but cheap.
+	indexDocument(t, r, tenant, map[string]interface{}{
+		"id": "sku-lo-" + uuid.NewString(), "title": term, "price": 1.0,
+	})
+
+	sortQ := fmt.Sprintf("q=%s&sort=%s&limit=10", url.QueryEscape(term), url.QueryEscape("price:asc"))
+
+	var hits []interface{}
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		res, ok := trySearchAsTenantWithQuery(t, r, tenant, sortQ)
+		if ok {
+			if h, ok := res["hits"].([]interface{}); ok && len(h) == 2 {
+				hits = h
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if len(hits) != 2 {
+		t.Fatalf("timed out waiting for both documents to become searchable")
+	}
+
+	first, ok := hits[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected first hit to be an object, got: %v", hits[0])
+	}
+	if price, ok := first["price"].(float64); !ok || price != 1.0 {
+		t.Fatalf("expected price:asc to dominate relevancy and put the $1 hit first, got price: %v", first["price"])
 	}
 }
 

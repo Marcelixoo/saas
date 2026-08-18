@@ -15,8 +15,15 @@ import UpgradeRequestsSection from './sections/UpgradeRequestsSection';
 import SettingsSection from './sections/SettingsSection';
 import type { SectionId } from './sections/sections';
 
-export default function Dashboard({ onLogout }: { onLogout: () => void }) {
-  const [section, setSection] = useState<SectionId>('metrics');
+export default function Dashboard({
+  section,
+  onSelect,
+  onLogout,
+}: {
+  section: SectionId;
+  onSelect: (id: SectionId) => void;
+  onLogout: () => void;
+}) {
   const [seedInfo, setSeedInfo] = useState<string | null>(null);
 
   const { selectedOrg } = useActiveOrg();
@@ -42,11 +49,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="flex min-h-screen bg-surface-2">
-      <Sidebar section={section} onSelect={setSection} onLogout={onLogout} />
+      <Sidebar section={section} onSelect={onSelect} onLogout={onLogout} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           section={section}
-          onOpenPlan={() => setSection('settings')}
+          onOpenPlan={() => onSelect('settings')}
           onSeed={handleSeed}
           seeding={seeding}
         />

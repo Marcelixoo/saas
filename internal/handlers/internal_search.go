@@ -82,6 +82,15 @@ func InternalIndexDocumentsBatch(engine search.TenantSearchEngine) gin.HandlerFu
 			return
 		}
 
+		// reset=true truncates the tenant index before indexing, so a re-seed
+		// rebuilds the catalog from scratch instead of layering onto stale docs.
+		if c.Query("reset") == "true" {
+			if err := engine.DeleteAllTenantDocuments(tenantID); err != nil {
+				errors.Handle(c, errors.Search("failed to reset tenant documents", err))
+				return
+			}
+		}
+
 		if err := engine.IndexTenantDocuments(tenantID, input.Documents); err != nil {
 			errors.Handle(c, errors.Search("failed to index tenant documents", err))
 			return

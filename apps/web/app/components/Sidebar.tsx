@@ -146,6 +146,7 @@ export default function Sidebar({
               <Input
                 id="organization-name"
                 data-testid="organization-name"
+                aria-label="Organization name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="New organization name"

@@ -184,10 +184,6 @@ export async function login(
 
 export type CurrentUser = { id: string; email: string; name: string };
 
-export async function getMe(token?: string): Promise<CurrentUser> {
-  return request('/me', {}, token);
-}
-
 export async function listOrganizations(token?: string): Promise<Organization[]> {
   return request('/organizations', {}, token);
 }
@@ -300,8 +296,11 @@ export async function removeMember(
 }
 
 // Seeds a catalog in chunks so large samples (e.g. the ~500-product real
-// catalog sample) stay well under any single request/body limit. Returns the
-// total number of accepted documents across all chunks.
+// catalog sample) stay well under any single request/body limit. The first
+// chunk carries `reset=true`, which truncates the tenant index before indexing
+// so a re-seed rebuilds the catalog from scratch instead of layering duplicate
+// or stale documents onto the previous seed. Returns the total number of
+// accepted documents across all chunks.
 export async function seedCatalog(
   slug: string,
   documents: CatalogDocument[],
@@ -311,8 +310,9 @@ export async function seedCatalog(
   let accepted = 0;
   for (let i = 0; i < documents.length; i += CHUNK_SIZE) {
     const chunk = documents.slice(i, i + CHUNK_SIZE);
+    const reset = i === 0;
     const result = await request<{ accepted: number }>(
-      `/organizations/${slug}/documents/batch`,
+      `/organizations/${slug}/documents/batch${reset ? '?reset=true' : ''}`,
       { method: 'POST', body: JSON.stringify({ documents: chunk }) },
       token,
     );

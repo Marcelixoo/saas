@@ -195,8 +195,12 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
     const { organization, role } = await resolveMembership(app.deps.prisma, slug, request.authUser!.id);
     requireRole(role, ['OWNER', 'ADMIN']);
 
+    // reset=true truncates the tenant index before indexing this batch, so a
+    // re-seed rebuilds the catalog cleanly instead of duplicating documents.
+    const reset = (request.query as { reset?: string }).reset === 'true';
+
     try {
-      const result = await app.deps.searchClient.indexBatch(organization.id, parsed.data.documents);
+      const result = await app.deps.searchClient.indexBatch(organization.id, parsed.data.documents, reset);
       await app.deps.prisma.usageEvent.create({
         data: {
           organizationId: organization.id,

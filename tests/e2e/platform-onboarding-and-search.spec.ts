@@ -34,9 +34,16 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
   await page.getByTestId('seed-catalog').click();
 
   // 7-8. Search a known seeded product and confirm it appears.
+  // The search engine indexes asynchronously, so a query issued immediately
+  // after seeding can legitimately return no hits yet. Re-issue the search
+  // (bounded retry) until the freshly-seeded catalog becomes searchable.
   await page.getByTestId('search-input').fill('Nike');
-  await page.getByTestId('search-submit').click();
-  await expect(page.getByTestId('search-results')).toContainText(/nike/i);
+  await expect(async () => {
+    await page.getByTestId('search-submit').click();
+    await expect(page.getByTestId('search-results')).toContainText(/nike/i, {
+      timeout: 2000,
+    });
+  }).toPass({ timeout: 20000 });
 
   // 9. Confirm usage information is visible.
   await expect(page.getByTestId('usage-search-count')).toBeVisible();

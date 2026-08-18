@@ -210,6 +210,20 @@ func isIndexAlreadyExists(err error) bool {
 		meiliErr.MeilisearchApiError.Code == "index_already_exists"
 }
 
+// isIndexNotFound reports whether err is Meilisearch's response to searching
+// (or otherwise operating on) an index that has never been created (HTTP 404
+// / "index_not_found"). A brand-new tenant that has never indexed a document
+// has no index yet; per CONTRACT.md this must read as "zero results", not an
+// error.
+func isIndexNotFound(err error) bool {
+	var meiliErr *meilisearch.Error
+	if !errors.As(err, &meiliErr) {
+		return false
+	}
+	return meiliErr.StatusCode == http.StatusNotFound ||
+		meiliErr.MeilisearchApiError.Code == "index_not_found"
+}
+
 // IndexTenantDocuments indexes documents into the tenant's isolated index,
 // lazily creating/configuring it on first use.
 func (e *MeilisearchEngine) IndexTenantDocuments(tenantID string, documents []search.TenantDocument) error {
@@ -227,13 +241,15 @@ func (e *MeilisearchEngine) IndexTenantDocuments(tenantID string, documents []se
 	return err
 }
 
-// SearchTenant searches within the tenant's isolated index, lazily
-// creating/configuring it on first use.
+// SearchTenant searches within the tenant's isolated index. Unlike
+// IndexTenantDocuments, it deliberately does NOT go through tenantIndex to
+// lazily create the index: a search is a read, and a brand-new tenant that
+// has never indexed a document simply has no index yet. Per CONTRACT.md,
+// that must read back as zero results (not an error, and not a
+// side-effecting index creation on a read path).
 func (e *MeilisearchEngine) SearchTenant(tenantID string, query string, options search.SearchOptions) (search.TenantSearchResponse, error) {
-	idx, err := e.tenantIndex(tenantID)
-	if err != nil {
-		return search.TenantSearchResponse{Query: query}, err
-	}
+	indexName := search.TenantIndexName(tenantID)
+	idx := Client.Index(indexName)
 
 	result, err := idx.Search(query, &meilisearch.SearchRequest{
 		Limit:  int64(options.Limit),
@@ -242,6 +258,13 @@ func (e *MeilisearchEngine) SearchTenant(tenantID string, query string, options 
 		Sort:   options.Sort,
 	})
 	if err != nil {
+		if isIndexNotFound(err) {
+			return search.TenantSearchResponse{
+				Query: query,
+				Hits:  []search.TenantDocument{},
+				Total: 0,
+			}, nil
+		}
 		return search.TenantSearchResponse{Query: query}, err
 	}
 

@@ -8,3 +8,4 @@ data:
   FREE_SEARCH_LIMIT: "3"
   PRO_SEARCH_LIMIT: "10"
   ALLOWED_SIGNUP_EMAILS: "@e2e.test"
+  CORS_ORIGINS: "http://web.localtest.me:8088"

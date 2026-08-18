@@ -1,3 +1,12 @@
+function parseCorsOrigins(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const origins = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return origins.length > 0 ? origins : undefined;
+}
+
 function parseAllowlist(raw: string | undefined): { emails: Set<string>; domains: Set<string> } {
   const emails = new Set<string>();
   const domains = new Set<string>();
@@ -28,6 +37,13 @@ export const config = {
   freeSearchLimit: Number(process.env.FREE_SEARCH_LIMIT ?? 30),
   proSearchLimit: Number(process.env.PRO_SEARCH_LIMIT ?? 300),
   allowedSignupEmails: parseAllowlist(process.env.ALLOWED_SIGNUP_EMAILS),
+  // Explicit CORS allowlist (comma-separated, case-sensitive origins), e.g.
+  // "https://admin.example.com,https://app.example.com". When unset, the
+  // app falls back to reflecting the request origin (`origin: true`) for
+  // local-dev convenience — see app.ts. Production deployments should
+  // always set this to a concrete allowlist rather than relying on the
+  // reflect-all default.
+  corsOrigins: parseCorsOrigins(process.env.CORS_ORIGINS),
 };
 
 export function isEmailAllowed(email: string): boolean {

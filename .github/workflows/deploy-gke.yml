@@ -6,19 +6,22 @@ name: Deploy to GKE
 # (google-github-actions/auth@v2) — no long-lived service-account key is
 # ever stored as a GitHub secret.
 #
-# This workflow is INERT until the repo variables below are configured
-# (see infra/terraform/README.md for how to obtain them after
-# `terraform apply`). The gate job below SKIPS (not fails) the deploy when
-# they're absent, so merging this file never turns main red.
+# This workflow is INERT until ALL of the repo variables below are
+# configured (see infra/terraform/README.md for how to obtain them after
+# `terraform apply`). The check-config gate job requires every one of them
+# to be set and SKIPS (not fails) the deploy otherwise — a partial
+# configuration (e.g. WIF set but GCP_ARTIFACT_REGISTRY missing) is treated
+# the same as "not configured yet", so this never lets the deploy job run
+# and hard-fail partway through. Merging this file never turns main red.
 #
 # Required repo variables (Settings -> Secrets and variables -> Actions -> Variables):
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  - infra/terraform output: workload_identity_provider
 #   GCP_SERVICE_ACCOUNT             - infra/terraform output: deploy_service_account_email
-#   GCP_PROJECT_ID                  - defaults to criticalmars-saas if unset
-#   GCP_REGION                      - defaults to europe-west3 if unset
+#   GCP_PROJECT_ID                  - the GCP project terraform was applied against, e.g. criticalmars-saas
+#   GCP_REGION                      - the region terraform was applied against, e.g. europe-west3
 #   GCP_ARTIFACT_REGISTRY           - infra/terraform output: artifact_registry_repository
 #                                      (full path, e.g. europe-west3-docker.pkg.dev/<project>/saas)
-#   GCP_CLUSTER_NAME                - defaults to saas-gke if unset
+#   GCP_CLUSTER_NAME                - infra/terraform var/output: cluster_name, e.g. saas-gke
 #   PROD_API_URL                    - browser-reachable control-plane URL, baked into the
 #                                      web image at build time (NEXT_PUBLIC_API_URL), e.g.
 #                                      https://api.example.com
@@ -38,15 +41,34 @@ jobs:
     outputs:
       configured: ${{ steps.check.outputs.configured }}
     steps:
-      - name: Check required WIF/deploy configuration is present
+      - name: Check required deploy configuration is present
         id: check
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+          GCP_ARTIFACT_REGISTRY: ${{ vars.GCP_ARTIFACT_REGISTRY }}
+          GCP_CLUSTER_NAME: ${{ vars.GCP_CLUSTER_NAME }}
+          PROD_API_URL: ${{ vars.PROD_API_URL }}
         run: |
-          if [ -n "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ] && [ -n "${{ vars.GCP_SERVICE_ACCOUNT }}" ]; then
+          # Every repo variable the build-and-deploy job actually reads
+          # must be set — a partial configuration (e.g. WIF set but
+          # GCP_ARTIFACT_REGISTRY missing) must SKIP the deploy, not let it
+          # run and hard-fail partway through.
+          missing=""
+          for name in GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT GCP_PROJECT_ID GCP_REGION GCP_ARTIFACT_REGISTRY GCP_CLUSTER_NAME PROD_API_URL; do
+            if [ -z "${!name}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+
+          if [ -z "$missing" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
-            echo "GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT are set; deploy will run."
+            echo "All required repo variables are set; deploy will run."
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT repo variables are not set. Skipping deploy (see infra/terraform/README.md)."
+            echo "::notice::Missing repo variable(s):${missing}. Skipping deploy (see infra/terraform/README.md)."
           fi
 
   build-and-deploy:
@@ -57,10 +79,12 @@ jobs:
       contents: read
       id-token: write # required by google-github-actions/auth@v2 for WIF
     env:
-      PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'criticalmars-saas' }}
-      REGION: ${{ vars.GCP_REGION || 'europe-west3' }}
+      # check-config (above) guarantees all of these are set before this
+      # job runs, so no fallback defaults are used here.
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
       REGISTRY: ${{ vars.GCP_ARTIFACT_REGISTRY }}
-      CLUSTER_NAME: ${{ vars.GCP_CLUSTER_NAME || 'saas-gke' }}
+      CLUSTER_NAME: ${{ vars.GCP_CLUSTER_NAME }}
       NEXT_PUBLIC_API_URL: ${{ vars.PROD_API_URL }}
     steps:
       - name: Checkout code

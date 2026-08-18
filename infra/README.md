@@ -8,7 +8,7 @@ infra/
   k8s/
     base/                 # namespace, configmap, secret, all workloads+services, ingress
     overlays/local/       # k3d: acceptance-tuned config, localtest.me ingress hosts, dev secrets
-    overlays/gke/         # GKE manifests only — NOT deployed (out of scope)
+    overlays/gke/         # production overlay — see "Production (GKE)" below
   docker/
     control-plane.Dockerfile   # same as apps/control-plane/Dockerfile + optional CA trust
     web.Dockerfile              # same as apps/web/Dockerfile, bakes NEXT_PUBLIC_API_URL at build time
@@ -109,9 +109,30 @@ E2E_API_URL=http://api.localtest.me:8088
 `POSTGRES_PASSWORD` are stored as a plain Kubernetes `Secret` with
 placeholder dev values (`*-change-me`). This is acceptable for a local
 submission per the task brief; do **not** reuse these values anywhere real.
-For a production/GKE rollout, swap these for GCP Secret Manager via the
-Secret Manager CSI driver (see the commented-out notes in
-`infra/k8s/overlays/gke/kustomization.yaml`).
+The production (`gke`) overlay does not ship these placeholders at all —
+see `infra/k8s/overlays/gke/README.md`.
+
+## Production (GKE)
+
+`infra/k8s/overlays/gke` is a production-hardened overlay of this same
+topology: no dev-placeholder secrets (deleted, not shipped — a real
+`saas-secrets` Secret must be supplied out-of-band, or sourced from GCP
+Secret Manager via the Secret Manager CSI driver), 2 replicas + higher
+resource limits for the stateless services, a GCE ingress with a reserved
+static IP and a GKE-managed TLS cert, and HTTP → HTTPS redirect. See:
+
+- `infra/terraform/README.md` — provisions the GKE Autopilot cluster,
+  Artifact Registry repo, and the Workload-Identity-Federated deploy
+  service account CI uses (no long-lived key).
+- `infra/k8s/overlays/gke/README.md` — what the overlay changes, and the
+  steps required before the first real `apply` (secrets, DNS, GitHub repo
+  variables).
+- `.github/workflows/deploy-gke.yml` — builds+pushes all three images and
+  deploys on push to `main` / a `v*` tag. Skips (doesn't fail) until the
+  required repo variables are configured.
+
+`kubectl kustomize infra/k8s/overlays/gke` builds cleanly today with no
+live cluster/credentials; it has not yet been `apply`'d to a real cluster.
 
 ## Acceptance-tuned config (local overlay only)
 
@@ -149,8 +170,9 @@ per the task brief) and is not implemented here.
 
 - `redis` has no PVC — cache data is lost on pod restart (acceptable; it's
   used only for rate-limit counters, not durable state).
-- No HPA configured (optional per task brief).
-- `infra/k8s/overlays/gke/**` is manifests-only and has **not** been applied
-  to any real GKE cluster.
+- No HPA configured (optional per task brief) on either overlay.
+- `infra/k8s/overlays/gke/**` has **not** been applied to any real GKE
+  cluster by this repo's automation yet — see its own README for the
+  operator steps required first.
 - Ingress uses Traefik's default class shipped with k3d; no TLS/cert-manager
   is configured (not needed for local HTTP acceptance testing).

@@ -1,0 +1,169 @@
+name: Deploy to GKE
+
+# Builds and deploys the full multi-service platform (web, control-plane,
+# search-api) to the production GKE cluster provisioned by
+# infra/terraform/. Authenticates via Workload Identity Federation
+# (google-github-actions/auth@v2) — no long-lived service-account key is
+# ever stored as a GitHub secret.
+#
+# This workflow is INERT until ALL of the repo variables below are
+# configured (see infra/terraform/README.md for how to obtain them after
+# `terraform apply`). The check-config gate job requires every one of them
+# to be set and SKIPS (not fails) the deploy otherwise — a partial
+# configuration (e.g. WIF set but GCP_ARTIFACT_REGISTRY missing) is treated
+# the same as "not configured yet", so this never lets the deploy job run
+# and hard-fail partway through. Merging this file never turns main red.
+#
+# Required repo variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  - infra/terraform output: workload_identity_provider
+#   GCP_SERVICE_ACCOUNT             - infra/terraform output: deploy_service_account_email
+#   GCP_PROJECT_ID                  - the GCP project terraform was applied against, e.g. criticalmars-saas
+#   GCP_REGION                      - the region terraform was applied against, e.g. europe-west3
+#   GCP_ARTIFACT_REGISTRY           - infra/terraform output: artifact_registry_repository
+#                                      (full path, e.g. europe-west3-docker.pkg.dev/<project>/saas)
+#   GCP_CLUSTER_NAME                - infra/terraform var/output: cluster_name, e.g. saas-gke
+#   PROD_API_URL                    - browser-reachable control-plane URL, baked into the
+#                                      web image at build time (NEXT_PUBLIC_API_URL), e.g.
+#                                      https://api.example.com
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check-config:
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check required deploy configuration is present
+        id: check
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+          GCP_ARTIFACT_REGISTRY: ${{ vars.GCP_ARTIFACT_REGISTRY }}
+          GCP_CLUSTER_NAME: ${{ vars.GCP_CLUSTER_NAME }}
+          PROD_API_URL: ${{ vars.PROD_API_URL }}
+        run: |
+          # Every repo variable the build-and-deploy job actually reads
+          # must be set — a partial configuration (e.g. WIF set but
+          # GCP_ARTIFACT_REGISTRY missing) must SKIP the deploy, not let it
+          # run and hard-fail partway through.
+          missing=""
+          for name in GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT GCP_PROJECT_ID GCP_REGION GCP_ARTIFACT_REGISTRY GCP_CLUSTER_NAME PROD_API_URL; do
+            if [ -z "${!name}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+
+          if [ -z "$missing" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "All required repo variables are set; deploy will run."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Missing repo variable(s):${missing}. Skipping deploy (see infra/terraform/README.md)."
+          fi
+
+  build-and-deploy:
+    needs: check-config
+    if: needs.check-config.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required by google-github-actions/auth@v2 for WIF
+    env:
+      # check-config (above) guarantees all of these are set before this
+      # job runs, so no fallback defaults are used here.
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      REGISTRY: ${{ vars.GCP_ARTIFACT_REGISTRY }}
+      CLUSTER_NAME: ${{ vars.GCP_CLUSTER_NAME }}
+      NEXT_PUBLIC_API_URL: ${{ vars.PROD_API_URL }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGISTRY%%/*}" --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/web.Dockerfile
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+          tags: |
+            ${{ env.REGISTRY }}/web:${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Build and push control-plane image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/control-plane.Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/control-plane:${{ github.sha }}
+          cache-from: type=gha,scope=control-plane
+          cache-to: type=gha,mode=max,scope=control-plane
+
+      - name: Build and push search-api image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/search-api:${{ github.sha }}
+          cache-from: type=gha,scope=search-api
+          cache-to: type=gha,mode=max,scope=search-api
+
+      - name: Set up kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Set image tags in the gke overlay
+        working-directory: infra/k8s/overlays/gke
+        run: |
+          kustomize edit set image \
+            "saas/web=${REGISTRY}/web:${{ github.sha }}" \
+            "saas/control-plane=${REGISTRY}/control-plane:${{ github.sha }}" \
+            "saas/search-api=${REGISTRY}/search-api:${{ github.sha }}"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          location: ${{ env.REGION }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy
+        run: kubectl apply -k infra/k8s/overlays/gke
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n saas rollout status deployment/web --timeout=300s
+          kubectl -n saas rollout status deployment/control-plane --timeout=300s
+          kubectl -n saas rollout status deployment/search-api --timeout=300s

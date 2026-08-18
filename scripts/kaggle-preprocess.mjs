@@ -125,7 +125,7 @@ async function loadCategories() {
 }
 
 function isHttpUrl(s) {
-  return typeof s === 'string' && /^https?:\/\/\S+$/.test(s);
+  return typeof s === 'string' && /^https?:\/\/\S+$/.test(s.trim());
 }
 
 function cleanTitle(t) {
@@ -181,7 +181,7 @@ async function main() {
     const price = Number(r[COL.price]);
     const stars = Number(r[COL.stars]);
     const bought = Number(r[COL.boughtInLastMonth]);
-    const imgUrl = r[COL.imgUrl];
+    const imgUrl = (r[COL.imgUrl] || '').trim();
     const title = cleanTitle(r[COL.title]);
 
     // Quality gate.
@@ -264,6 +264,13 @@ async function main() {
       imageUrl: c.imgUrl,
     };
   });
+
+  if (docs.length < TARGET_COUNT) {
+    console.warn(
+      `WARNING: only ${docs.length} documents selected (< TARGET_COUNT ${TARGET_COUNT}). ` +
+        'Not enough quality rows across categories — lower TARGET_COUNT or raise PER_CATEGORY.',
+    );
+  }
 
   fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
   fs.writeFileSync(OUT_FILE, JSON.stringify(docs, null, 0));

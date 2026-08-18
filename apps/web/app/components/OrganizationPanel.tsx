@@ -179,7 +179,11 @@ export default function OrganizationPanel({ token, onUnauthorized }: Props) {
           {error}
         </div>
       )}
-      {info && <div style={{ color: '#0b6a0b', marginBottom: '1rem' }}>{info}</div>}
+      {info && (
+        <div data-testid="catalog-seed-info" style={{ color: '#0b6a0b', marginBottom: '1rem' }}>
+          {info}
+        </div>
+      )}
 
       <div style={boxStyle}>
         <h2>Organization</h2>
@@ -257,7 +261,7 @@ export default function OrganizationPanel({ token, onUnauthorized }: Props) {
 
           <div style={boxStyle}>
             <h2>Catalog</h2>
-            <p>Seed a small synthetic product catalog for this organization.</p>
+            <p>Seed a 500-product sample of the real product catalog (with images and prices) for this organization.</p>
             <button
               data-testid="seed-catalog"
               type="button"

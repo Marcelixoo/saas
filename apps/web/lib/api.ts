@@ -151,14 +151,35 @@ export async function search(
   );
 }
 
+export type CatalogDocument = {
+  id: string;
+  title: string;
+  body?: string;
+  brand?: string;
+  category?: string;
+  tags?: string[];
+  price?: number;
+  imageUrl?: string;
+};
+
+// Seeds a catalog in chunks so large samples (e.g. the ~500-product real
+// catalog sample) stay well under any single request/body limit. Returns the
+// total number of accepted documents across all chunks.
 export async function seedCatalog(
   slug: string,
-  documents: Array<{ id: string; title: string; brand?: string; category?: string }>,
+  documents: CatalogDocument[],
   token?: string,
 ): Promise<{ accepted: number }> {
-  return request(
-    `/organizations/${slug}/documents/batch`,
-    { method: 'POST', body: JSON.stringify({ documents }) },
-    token,
-  );
+  const CHUNK_SIZE = 200;
+  let accepted = 0;
+  for (let i = 0; i < documents.length; i += CHUNK_SIZE) {
+    const chunk = documents.slice(i, i + CHUNK_SIZE);
+    const result = await request<{ accepted: number }>(
+      `/organizations/${slug}/documents/batch`,
+      { method: 'POST', body: JSON.stringify({ documents: chunk }) },
+      token,
+    );
+    accepted += result.accepted;
+  }
+  return { accepted };
 }

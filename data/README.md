@@ -104,6 +104,27 @@ operator/CI via ADC and seeded through the control-plane import API (below).
 
 ---
 
+## Admin UI "Seed sample catalog" button
+
+The Admin UI seeds from a committed 500-product slice of the real catalog,
+`apps/web/lib/sample-catalog.ts` (bundled with the web app; ~260 KB, with real
+prices + product images). The button imports it in ~200-doc chunks. Regenerate
+it from the full catalog (the first 500 are the most-popular product in each
+category, so the sample stays diverse):
+
+```bash
+node -e '
+  const fs=require("fs");
+  const sub=JSON.parse(fs.readFileSync("data/catalog/catalog.json","utf8")).slice(0,500);
+  const head=`export type SampleProduct = { id: string; title: string; body?: string; category?: string; tags?: string[]; price?: number; imageUrl?: string };\nexport const SAMPLE_CATALOG: SampleProduct[] = `;
+  fs.writeFileSync("apps/web/lib/sample-catalog.ts", head + JSON.stringify(sub) + ";\n");
+  console.log("wrote", sub.length, "products");'
+```
+
+The e2e test `tests/e2e/platform-onboarding-and-search.spec.ts` searches for a
+brand present in this sample (currently "Samsung") — keep an anchor term in sync
+if you change the sample.
+
 ## Seeding a control-plane (on demand)
 
 Use `scripts/import-catalog.mjs` (no dependencies, Node 18+). Pass an alternate

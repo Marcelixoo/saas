@@ -30,17 +30,22 @@ test('assessor onboards through the UI and searches a seeded catalog', async ({ 
   // 5. Confirm FREE plan.
   await expect(page.getByTestId('plan-badge')).toHaveText(/FREE/i);
 
-  // 6. Seed the synthetic catalog for this org.
+  // 6. Seed the sample catalog (a 500-product slice of the real catalog) for
+  // this org. Seeding runs in a few chunked requests, so allow extra time.
   await page.getByTestId('seed-catalog').click();
+  await expect(page.getByTestId('catalog-seed-info')).toContainText(/Seeded/i, {
+    timeout: 30000,
+  });
 
-  // 7-8. Search a known seeded product and confirm it appears.
+  // 7-8. Search a known seeded product and confirm it appears. "Samsung" is a
+  // brand present in the committed sample catalog (apps/web/lib/sample-catalog.ts).
   // The search engine indexes asynchronously, so a query issued immediately
   // after seeding can legitimately return no hits yet. Re-issue the search
   // (bounded retry) until the freshly-seeded catalog becomes searchable.
-  await page.getByTestId('search-input').fill('Nike');
+  await page.getByTestId('search-input').fill('Samsung');
   await expect(async () => {
     await page.getByTestId('search-submit').click();
-    await expect(page.getByTestId('search-results')).toContainText(/nike/i, {
+    await expect(page.getByTestId('search-results')).toContainText(/samsung/i, {
       timeout: 2000,
     });
   }).toPass({ timeout: 20000 });

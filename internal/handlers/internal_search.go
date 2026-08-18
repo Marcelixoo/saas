@@ -49,6 +49,7 @@ func InternalSearch(engine search.TenantSearchEngine) gin.HandlerFunc {
 			Offset: params.Offset,
 			Filter: params.Filter,
 			Sort:   []string{params.Sort},
+			Facets: params.Facets,
 		})
 		if err != nil {
 			errors.Handle(c, errors.Search("failed to search tenant documents", err))

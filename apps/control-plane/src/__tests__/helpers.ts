@@ -10,7 +10,7 @@ export interface TestContext {
   redis: Redis;
   searchClient: SearchApiClient & {
     calls: {
-      search: Array<{ tenantId: string; query: string }>;
+      search: Array<{ tenantId: string; query: string; opts?: import('../lib/searchClient').SearchOptions }>;
       index: Array<{ tenantId: string; documents: unknown[] }>;
       listDocuments: Array<{ tenantId: string; offset: number; limit: number }>;
     };
@@ -21,8 +21,8 @@ export function createFakeSearchClient(): TestContext['searchClient'] {
   const calls: TestContext['searchClient']['calls'] = { search: [], index: [], listDocuments: [] };
   return {
     calls,
-    async search(tenantId, query) {
-      calls.search.push({ tenantId, query });
+    async search(tenantId, query, opts) {
+      calls.search.push({ tenantId, query, opts });
       return { query, hits: [{ id: 'sku-1', title: 'Red Nike Shoe' }], total: 1 };
     },
     async indexBatch(tenantId, documents) {

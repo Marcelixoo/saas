@@ -15,6 +15,15 @@ const updatePlanSchema = z.object({
   plan: z.enum(['FREE', 'PRO']),
 });
 
+const searchQuerySchema = z.object({
+  q: z.string().min(1),
+  filter: z.string().optional(),
+  sort: z.string().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  offset: z.coerce.number().int().nonnegative().optional(),
+  facets: z.string().optional(),
+});
+
 const batchDocumentSchema = z.object({
   documents: z
     .array(
@@ -122,10 +131,11 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/organizations/:slug/search', { preHandler: requireAuth }, async (request, reply) => {
     const { slug } = request.params as { slug: string };
-    const { q } = request.query as { q?: string };
-    if (!q) {
-      throw Errors.validation('Query parameter "q" is required');
+    const parsedQuery = searchQuerySchema.safeParse(request.query);
+    if (!parsedQuery.success) {
+      throw Errors.validation(parsedQuery.error.issues.map((i) => i.message).join(', '));
     }
+    const { q, filter, sort, limit: searchLimit, offset: searchOffset, facets } = parsedQuery.data;
 
     const { organization } = await resolveMembership(app.deps.prisma, slug, request.authUser!.id);
 
@@ -145,7 +155,13 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const result = await app.deps.searchClient.search(organization.id, q);
+      const result = await app.deps.searchClient.search(organization.id, q, {
+        filter,
+        sort: sort ? sort.split(',') : undefined,
+        limit: searchLimit,
+        offset: searchOffset,
+        facets: facets ? facets.split(',') : undefined,
+      });
       await app.deps.prisma.usageEvent.create({
         data: {
           organizationId: organization.id,

@@ -46,8 +46,10 @@ control-plane startup) ship continuously via `.github/workflows/deploy-gke.yml`
 on push to `main`/`v*` or manual dispatch — building and pushing the three
 service images to Artifact Registry, authenticating via Workload Identity
 Federation (no long-lived service-account keys), applying the `gke` overlay,
-and waiting on rollout health with automatic rollback to the last-good
-revision on failure.
+and waiting on rollout health, rolling the affected Deployments back to
+their previous revision via `kubectl rollout undo` on failure (pod template
+only — ConfigMap/Secret changes and forward DB migrations are not
+reverted).
 
 **Local dev and acceptance target: k3d (Kubernetes-in-Docker).** The same
 Kustomize base plus `infra/k8s/overlays/local` deploys this topology to a

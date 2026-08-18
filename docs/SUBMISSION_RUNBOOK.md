@@ -120,9 +120,11 @@ deployment**: a GKE Autopilot cluster (`saas-gke`, europe-west3, namespace
 `saas`), reachable at https://web.criticalmars.me (Admin UI) and
 https://api.criticalmars.me (control plane; `GET /healthz` returns
 `200 {"status":"ok"}`). A single GCE Ingress exposes only `web` and
-`control-plane` behind a static IP (`136.68.233.26`) and an active
-Google-managed TLS certificate, with HTTP redirected to HTTPS;
-`search-api`, `postgres`, `redis`, and `meilisearch` stay ClusterIP-only.
+`control-plane` behind the reserved static IP (Terraform output
+`ingress_static_ip_address`, resource `saas-ingress-ip`; currently
+`136.68.233.26`) and a Google-managed TLS certificate (resource
+`saas-managed-cert`), with HTTP redirected to HTTPS; `search-api`,
+`postgres`, `redis`, and `meilisearch` stay ClusterIP-only.
 
 Cluster, Artifact Registry, Workload Identity Federation, the static IP, and
 GCP Secret Manager are provisioned by `infra/terraform/` and applied
@@ -131,8 +133,10 @@ substitution, syncing `saas-secrets` from Secret Manager, `kubectl apply -k
 infra/k8s/overlays/gke`, and the database migration (`prisma migrate deploy`
 on control-plane startup) — run via `.github/workflows/deploy-gke.yml` on
 every push to `main`/`v*` (or manual dispatch), authenticated via Workload
-Identity Federation (no long-lived service-account keys). A failed rollout
-is automatically rolled back to the last-good revision.
+Identity Federation (no long-lived service-account keys). If the rollout
+fails to become healthy, the affected Deployments are rolled back to their
+previous revision via `kubectl rollout undo` (pod template only —
+ConfigMap/Secret changes and forward DB migrations are not reverted).
 
 The k3d bring-up above remains the local/CI acceptance target — it is not
 the production deployment, but it is the environment the Playwright

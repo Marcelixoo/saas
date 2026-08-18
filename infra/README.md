@@ -120,7 +120,7 @@ https://web.criticalmars.me and https://api.criticalmars.me: no
 dev-placeholder secrets (deleted, not shipped — `saas-secrets` is
 materialized from GCP Secret Manager on every deploy), 2 replicas + higher
 resource limits for the stateless services, a GCE ingress with a reserved
-static IP and a Google-managed TLS cert (Active), and HTTP → HTTPS redirect.
+static IP and a Google-managed TLS certificate, and HTTP → HTTPS redirect.
 See:
 
 - `infra/terraform/README.md` — provisions the GKE Autopilot cluster,
@@ -130,8 +130,10 @@ See:
   steps that were needed the first time it was applied for real (secrets,
   DNS, GitHub repo variables).
 - `.github/workflows/deploy-gke.yml` — builds+pushes all three images and
-  deploys on push to `main` / a `v*` tag, with automatic rollback to the
-  last-good revision if the rollout fails to become healthy.
+  deploys on push to `main` / a `v*` tag; if the rollout fails to become
+  healthy it rolls the affected Deployments back to their previous revision
+  via `kubectl rollout undo` (pod template only — ConfigMap/Secret changes
+  and forward DB migrations are not reverted).
 
 `kubectl kustomize infra/k8s/overlays/gke` also builds cleanly offline with
 no live cluster/credentials, which is what CI's manifest-lint job checks.

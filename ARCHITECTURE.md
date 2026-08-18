@@ -205,7 +205,7 @@ longer paired with a Cloud Run deploy step.
 | `acceptance-e2e.yml` | Playwright system tests (`tests/e2e/**`) | **No — `continue-on-error: true`, informational only** |
 | `main.yml` (`AI Code Review`) | Legacy third-party PR review action from the project's earlier phase | Not part of this submission's gating |
 | `k8s-manifests-lint.yml` | Renders `infra/k8s/overlays/{local,gke}` with `kubectl kustomize`, no cluster needed | Informational (`continue-on-error: true`) |
-| `deploy-gke.yml` | GKE CD: builds/pushes images, deploys `infra/k8s/overlays/gke` via WIF, auto-rolls back a failed rollout to the last-good revision | Live — runs the production deploy on every push to `main`/`v*` (gated by a `check-config` step on the repo variables in §8, `infra/terraform/README.md`) |
+| `deploy-gke.yml` | GKE CD: builds/pushes images, deploys `infra/k8s/overlays/gke` via WIF, `kubectl rollout undo`s the affected Deployments to their previous revision on a failed rollout (pod template only, not ConfigMap/Secret or DB migrations) | Live — runs the production deploy on every push to `main`/`v*` (gated by a `check-config` step on the repo variables in §8, `infra/terraform/README.md`) |
 
 The standalone Cloud Run pipeline (`deploy-gcp.yml`) and its `terraform/`
 directory from the project's earlier, single-service phase have been

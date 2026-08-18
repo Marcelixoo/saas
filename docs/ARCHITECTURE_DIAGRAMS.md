@@ -9,23 +9,23 @@ flowchart TB
         ApiDNS["api.criticalmars.me A record"]
     end
 
-    StaticIP["GCE Global Static IP\nsaas-ingress-ip\n136.68.233.26"]
+    StaticIP["GCE Global Static IP<br/>saas-ingress-ip<br/>136.68.233.26"]
 
     subgraph GKE["GKE Autopilot Cluster: saas-gke (europe-west3), namespace: saas"]
-        Ingress["Ingress: saas-ingress\nclass: gce"]
-        Cert["ManagedCertificate\nsaas-managed-cert (Active)"]
-        Frontend["FrontendConfig\nsaas-frontend-config\nHTTP to HTTPS redirect"]
+        Ingress["Ingress: saas-ingress<br/>class: gce"]
+        Cert["ManagedCertificate<br/>saas-managed-cert (Active)"]
+        Frontend["FrontendConfig<br/>saas-frontend-config<br/>HTTP to HTTPS redirect"]
 
         subgraph Exposed["Exposed Services"]
-            WebSvc["Service: web\nNext.js Admin UI, port 3000"]
-            CpSvc["Service: control-plane\nFastify/Node, port 8080"]
+            WebSvc["Service: web<br/>Next.js Admin UI, port 3000"]
+            CpSvc["Service: control-plane<br/>Fastify/Node, port 8080"]
         end
 
         subgraph Internal["Internal-only Services (ClusterIP, not on Ingress)"]
-            SearchSvc["Service: search-api\nGo/Gin, port 8081"]
-            PgSvc["Service: postgres\nStatefulSet, port 5432"]
-            RedisSvc["Service: redis\nport 6379"]
-            MsSvc["Service: meilisearch\nStatefulSet, port 7700"]
+            SearchSvc["Service: search-api<br/>Go/Gin, port 8081"]
+            PgSvc["Service: postgres<br/>StatefulSet, port 5432"]
+            RedisSvc["Service: redis<br/>port 6379"]
+            MsSvc["Service: meilisearch<br/>StatefulSet, port 7700"]
         end
     end
 
@@ -52,25 +52,25 @@ Trust boundary: only `web` and `control-plane` are reachable through the Ingress
 
 ```mermaid
 flowchart LR
-    Trigger["Trigger:\npush to main, tag v*,\nor workflow_dispatch"]
-    Gate{"check-config gate\nall 7 repo variables set?"}
+    Trigger["Trigger:<br/>push to main, tag v*,<br/>or workflow_dispatch"]
+    Gate{"check-config gate<br/>all 7 repo variables set?"}
     Skip["Deploy skipped"]
 
     Checkout["Checkout code"]
-    WIF["Authenticate via\nWorkload Identity Federation"]
+    WIF["Authenticate via<br/>Workload Identity Federation"]
     BuildWeb["Build & push web image"]
     BuildCp["Build & push control-plane image"]
     BuildSearch["Build & push search-api image"]
-    AR["Google Artifact Registry\neuropewest3-docker.pkg.dev/.../saas\ntagged with commit SHA"]
+    AR["Google Artifact Registry<br/>europe-west3-docker.pkg.dev/criticalmars-saas-505914/saas<br/>tagged with commit SHA"]
     Kustomize["kustomize edit set image"]
     Creds["Get GKE credentials"]
-    SecretSync["Sync saas-secrets from\nGCP Secret Manager"]
-    Apply["kubectl apply -k\ninfra/k8s/overlays/gke"]
-    Rollout{"Wait for rollout\nhealthy?"}
+    SecretSync["Sync saas-secrets from<br/>GCP Secret Manager"]
+    Apply["kubectl apply -k<br/>infra/k8s/overlays/gke"]
+    Rollout{"Wait for rollout<br/>healthy?"}
     Success["Deployment complete"]
-    Rollback["kubectl rollout undo\nto last-good revision"]
+    Rollback["kubectl rollout undo<br/>to last-good revision"]
     RecheckHealth["Re-check health"]
-    Fail["Build marked failed\ncluster left on last-good state"]
+    Fail["Build marked failed<br/>cluster left on last-good state"]
 
     Trigger --> Gate
     Gate -->|missing variables| Skip
@@ -143,15 +143,15 @@ flowchart TD
     Browser["Browser (Admin UI)"]
     ApiClient["API Client"]
 
-    Ingress["GCE Ingress\nsaas-ingress"]
+    Ingress["GCE Ingress<br/>saas-ingress"]
 
     Web["web (Next.js)"]
-    CP["control-plane (Fastify/Node)\nJWT auth"]
+    CP["control-plane (Fastify/Node)<br/>JWT auth"]
 
     Postgres["postgres (Prisma ORM)"]
-    Redis["redis\nrate limiting / usage"]
-    SearchApi["search-api (Go/Gin)\n/internal/* not exposed via Ingress"]
-    Meili["meilisearch\nper-tenant index:\ntenant_<normalized-uuid>_articles"]
+    Redis["redis<br/>rate limiting / usage"]
+    SearchApi["search-api (Go/Gin)<br/>/internal/* not exposed via Ingress"]
+    Meili["meilisearch<br/>per-tenant index:<br/>tenant_<normalized-uuid>_articles"]
 
     Browser -->|web.criticalmars.me| Ingress
     ApiClient -->|api.criticalmars.me| Ingress
@@ -160,7 +160,7 @@ flowchart TD
 
     CP --> Postgres
     CP --> Redis
-    CP -->|"trusted X-Tenant-ID header\n(injected by control-plane, never client-supplied)"| SearchApi
+    CP -->|"trusted X-Tenant-ID header<br/>(injected by control-plane, never client-supplied)"| SearchApi
     SearchApi --> Meili
 
     classDef trust stroke:#cc3333,stroke-width:2px;
@@ -176,16 +176,16 @@ flowchart LR
     subgraph Terraform["Provisioned by Terraform (infra/terraform, applied manually with ADC)"]
         TfCluster["GKE Autopilot cluster"]
         TfAR["Artifact Registry repository"]
-        TfWIF["Workload Identity Federation\npool + provider scoped to Marcelixoo/saas"]
-        TfSA["Least-privilege deployer\nservice account"]
+        TfWIF["Workload Identity Federation<br/>pool + provider scoped to Marcelixoo/saas"]
+        TfSA["Least-privilege deployer<br/>service account"]
         TfIP["Global static IP"]
-        TfSecrets["Secret Manager secrets\n(random_password values)\nper-secret secretAccessor role"]
+        TfSecrets["Secret Manager secrets<br/>(random_password values)<br/>per-secret secretAccessor role"]
     end
 
     subgraph CD["Deployed by CI/CD (deploy-gke.yml)"]
-        CdImages["Container images\n(web, control-plane, search-api)"]
-        CdManifests["Kubernetes manifests\ninfra/k8s/overlays/gke (Kustomize)"]
-        CdSecretSync["saas-secrets K8s Secret\n(materialized from Secret Manager)"]
+        CdImages["Container images<br/>(web, control-plane, search-api)"]
+        CdManifests["Kubernetes manifests<br/>infra/k8s/overlays/gke (Kustomize)"]
+        CdSecretSync["saas-secrets K8s Secret<br/>(materialized from Secret Manager)"]
     end
 
     TfCluster -.->|hosts| CdManifests
@@ -202,27 +202,27 @@ Terraform state is local and git-ignored; it is applied manually, not via the de
 ```mermaid
 flowchart TD
     subgraph EdgeSecurity["Edge Security"]
-        TLS["Google-managed TLS certificate\nsaas-managed-cert"]
-        Redirect["FrontendConfig:\nHTTP to HTTPS redirect"]
+        TLS["Google-managed TLS certificate<br/>saas-managed-cert"]
+        Redirect["FrontendConfig:<br/>HTTP to HTTPS redirect"]
     end
 
     subgraph AppSecurity["Application Security"]
-        JWT["JWT authentication\n(control-plane)"]
+        JWT["JWT authentication<br/>(control-plane)"]
         RBAC["Role-based access control"]
-        RateLimit["Rate limiting\n(redis-backed usage tracking)"]
-        TenantHeader["Trusted X-Tenant-ID injection\n(never client-supplied)"]
+        RateLimit["Rate limiting<br/>(redis-backed usage tracking)"]
+        TenantHeader["Trusted X-Tenant-ID injection<br/>(never client-supplied)"]
     end
 
     subgraph NetworkSecurity["Network Isolation"]
-        ClusterIP["ClusterIP-only services:\npostgres, redis, search-api, meilisearch\n(not reachable via Ingress)"]
-        InternalRoutes["search-api /internal/* routes\nunreachable from outside cluster"]
+        ClusterIP["ClusterIP-only services:<br/>postgres, redis, search-api, meilisearch<br/>(not reachable via Ingress)"]
+        InternalRoutes["search-api /internal/* routes<br/>unreachable from outside cluster"]
     end
 
     subgraph IdentitySecurity["Identity & Secrets"]
-        WIFSec["Workload Identity Federation\n(no long-lived SA keys in CI)"]
-        LeastPriv["Least-privilege deployer\nservice account"]
-        SecretMgr["GCP Secret Manager\nsource of truth for credentials"]
-        K8sSecret["saas-secrets K8s Secret\nconsumed via secretKeyRef"]
+        WIFSec["Workload Identity Federation<br/>(no long-lived SA keys in CI)"]
+        LeastPriv["Least-privilege deployer<br/>service account"]
+        SecretMgr["GCP Secret Manager<br/>source of truth for credentials"]
+        K8sSecret["saas-secrets K8s Secret<br/>consumed via secretKeyRef"]
     end
 
     TLS --> Redirect

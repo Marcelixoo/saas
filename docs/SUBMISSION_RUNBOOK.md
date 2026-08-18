@@ -10,7 +10,7 @@ implemented is called out explicitly under [Known limitations](#known-limitation
 
 - [Local development (Docker Compose)](#local-development-docker-compose)
 - [Local Kubernetes (k3d)](#local-kubernetes-k3d)
-- [GKE (not deployed)](#gke-not-deployed)
+- [GKE (production)](#gke-production)
 - [PostgreSQL: single-replica trade-off & backup](#postgresql-single-replica-trade-off--backup)
 - [CI/CD](#cicd)
 - [Playwright acceptance suite](#playwright-acceptance-suite)
@@ -113,18 +113,34 @@ local submission, not to be reused anywhere real.
 Ingress** (`infra/k8s/base/ingress.yaml`) — only `web` and `control-plane`
 have routes, matching `CONTRACT.md` §1/§9 exactly.
 
-## GKE (not deployed)
+## GKE (production)
 
-`infra/k8s/overlays/gke/**` exists as manifests only:
+`infra/k8s/overlays/gke/**` is the manifest set for the **live production
+deployment**: a GKE Autopilot cluster (`saas-gke`, europe-west3, namespace
+`saas`), reachable at https://web.criticalmars.me (Admin UI) and
+https://api.criticalmars.me (control plane; `GET /healthz` returns
+`200 {"status":"ok"}`). A single GCE Ingress exposes only `web` and
+`control-plane` behind the reserved static IP (Terraform output
+`ingress_static_ip_address`, resource `saas-ingress-ip`; currently
+`136.68.233.26`) and a Google-managed TLS certificate (resource
+`saas-managed-cert`), with HTTP redirected to HTTPS; `search-api`,
+`postgres`, `redis`, and `meilisearch` stay ClusterIP-only.
 
-- an Ingress patch targeting a GKE-style (`gce`) Ingress class,
-- commented-out notes on pointing `images:` at an Artifact Registry repo and
-  swapping plain k8s Secrets for GCP Secret Manager via the CSI driver.
+Cluster, Artifact Registry, Workload Identity Federation, the static IP, and
+GCP Secret Manager are provisioned by `infra/terraform/` and applied
+manually. Application deploys — image build/push, `kustomize` image
+substitution, syncing `saas-secrets` from Secret Manager, `kubectl apply -k
+infra/k8s/overlays/gke`, and the database migration (`prisma migrate deploy`
+on control-plane startup) — run via `.github/workflows/deploy-gke.yml` on
+every push to `main`/`v*` (or manual dispatch), authenticated via Workload
+Identity Federation (no long-lived service-account keys). If the rollout
+fails to become healthy, the affected Deployments are rolled back to their
+previous revision via `kubectl rollout undo` (pod template only —
+ConfigMap/Secret changes and forward DB migrations are not reverted).
 
-**This overlay has not been applied to any real GKE cluster** as part of
-this submission. Do not read its presence as a claim of a live cloud
-deployment — the k3d bring-up above is the only deployment target that has
-actually been exercised end to end.
+The k3d bring-up above remains the local/CI acceptance target — it is not
+the production deployment, but it is the environment the Playwright
+acceptance suite runs against.
 
 ## PostgreSQL: single-replica trade-off & backup
 
@@ -302,10 +318,10 @@ codebase, so we reconcile it here against what's actually implemented:
 - **Input validation**: Zod schemas on every control-plane request body/
   query param that accepts client input; typed struct binding on the Go
   side.
-- **Secrets**: `.env` files are gitignored; k8s secrets are plain
-  `Secret` objects with placeholder values for local use only (see
-  [GKE](#gke-not-deployed) for the intended production path via Secret
-  Manager — not implemented here).
+- **Secrets**: `.env` files are gitignored; local k8s secrets are plain
+  `Secret` objects with placeholder values, local use only. Production
+  (see [GKE](#gke-production)) sources secrets from GCP Secret Manager,
+  materialized into the cluster at deploy time.
 - **Dependency scanning**: `govulncheck` runs in CI on every push/PR against
   the Go module.
 - **Not implemented / out of scope for this submission**: TLS/cert-manager
@@ -316,8 +332,6 @@ codebase, so we reconcile it here against what's actually implemented:
 
 ## Known limitations
 
-- GKE overlay is manifests-only; no live GKE deployment exists for this
-  submission.
 - Postgres and Meilisearch run as single-replica StatefulSets — no HA,
   manual `pg_dump` backup only, no automated restore path.
 - Redis has no PVC; a rate-limit counter reset on pod restart is acceptable

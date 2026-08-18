@@ -167,19 +167,22 @@ The full request/response contract is in `CONTRACT.md` §3. Summary:
 
 ## 8. Deployment topologies
 
-Three deployment surfaces exist in this repo, at three different levels of
-maturity — see `README.md` and `docs/SUBMISSION_RUNBOOK.md` for details:
+Three deployment surfaces exist in this repo, serving different purposes —
+see `README.md` and `docs/SUBMISSION_RUNBOOK.md` for details:
 
-1. **Docker Compose** (`docker-compose.yml`) — the everyday local dev loop.
-   Fully working end to end.
+1. **GKE** (`infra/k8s/overlays/gke/**`) — the **production deployment**.
+   Live on a GKE Autopilot cluster (`saas-gke`, europe-west3, namespace
+   `saas`), serving https://web.criticalmars.me and
+   https://api.criticalmars.me behind a GCE Ingress, a static IP, and a
+   Google-managed TLS certificate. Cluster/registry/networking/secrets
+   infra is provisioned by `infra/terraform/`; application deploys ship via
+   `.github/workflows/deploy-gke.yml` on every push to `main`/`v*`.
 2. **Local Kubernetes on k3d** (`infra/k8s/**`, `infra/README.md`) — the
-   actual acceptance target for this submission. Kustomize `base` +
-   `overlays/local`. Verified by bringing up a real k3d cluster.
-3. **GKE** (`infra/k8s/overlays/gke/**`) — manifests exist (image
-   placeholders, GKE-appropriate Ingress patch, comments on Secret Manager
-   migration) but **have not been applied to any real GKE cluster** for this
-   submission. Treat this overlay as a documented intent, not a verified
-   deployment.
+   local/CI acceptance target. Kustomize `base` + `overlays/local`. The
+   Playwright acceptance suite (`tests/e2e/**`) runs against a k3d cluster
+   brought up this way.
+3. **Docker Compose** (`docker-compose.yml`) — the everyday local dev loop.
+   Fully working end to end.
 
 There was also a legacy `.github/workflows/deploy-gcp.yml` (plus a
 top-level `terraform/` directory) predating the multi-tenant platform: it
@@ -202,13 +205,12 @@ longer paired with a Cloud Run deploy step.
 | `acceptance-e2e.yml` | Playwright system tests (`tests/e2e/**`) | **No — `continue-on-error: true`, informational only** |
 | `main.yml` (`AI Code Review`) | Legacy third-party PR review action from the project's earlier phase | Not part of this submission's gating |
 | `k8s-manifests-lint.yml` | Renders `infra/k8s/overlays/{local,gke}` with `kubectl kustomize`, no cluster needed | Informational (`continue-on-error: true`) |
-| `deploy-gke.yml` | GKE CD: builds/pushes images, deploys `infra/k8s/overlays/gke` via WIF | Skips until GCP repo variables are configured (see §8, `infra/terraform/README.md`) |
+| `deploy-gke.yml` | GKE CD: builds/pushes images, deploys `infra/k8s/overlays/gke` via WIF, `kubectl rollout undo`s the affected Deployments to their previous revision on a failed rollout (pod template only, not ConfigMap/Secret or DB migrations) | Live — runs the production deploy on every push to `main`/`v*` (gated by a `check-config` step on the repo variables in §8, `infra/terraform/README.md`) |
 
 The standalone Cloud Run pipeline (`deploy-gcp.yml`) and its `terraform/`
 directory from the project's earlier, single-service phase have been
 removed — see §8.
 
-The acceptance suite (`acceptance-e2e.yml`) is deliberately non-blocking: it
-was authored before the platform existed (see its own header comment) and
-is meant to go green once the full stack is deployed, not to gate ordinary
-feature PRs.
+The acceptance suite (`acceptance-e2e.yml`) is deliberately non-blocking
+against ordinary feature PRs: it runs against a k3d cluster it brings up
+itself, independent of the GKE production deploy in `deploy-gke.yml`.

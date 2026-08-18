@@ -19,9 +19,9 @@ scripts/dev-up.sh full     # also brings up control-plane + web
 `setup-gcp.sh`, `setup-secrets.sh`, and `deploy.sh` were removed. They
 targeted the legacy single-service Cloud Run deployment (see
 `THREAT_MODEL_ANALYSIS.md` §7), which has been superseded by the
-Kustomize-based multi-service topology in `infra/k8s/` (local k3d today,
-GKE via `infra/terraform/` + `.github/workflows/deploy-gke.yml`). See
-`infra/README.md` for the current deployment story.
+Kustomize-based multi-service topology in `infra/k8s/` — production on GKE
+via `infra/terraform/` + `.github/workflows/deploy-gke.yml`, local dev and
+acceptance on k3d. See `infra/README.md` for the current deployment story.
 
 ## Best Practices
 

@@ -71,7 +71,14 @@ variable "required_apis" {
     "cloudresourcemanager.googleapis.com",
     "sts.googleapis.com",
     "secretmanager.googleapis.com",
+    "storage.googleapis.com",
   ]
+}
+
+variable "catalog_bucket_name" {
+  description = "Name of the private GCS bucket that stages the preprocessed product catalog + search-suggestion artifacts (see data/README.md). GCS bucket names are globally unique; leave empty to derive \"<project_id>-catalog\"."
+  type        = string
+  default     = ""
 }
 
 variable "secret_name_prefix" {

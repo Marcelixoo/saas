@@ -22,6 +22,8 @@ export interface BatchDocument {
   tags?: string[];
   brand?: string;
   category?: string;
+  price?: number;
+  imageUrl?: string;
   [key: string]: unknown;
 }
 

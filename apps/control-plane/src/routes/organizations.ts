@@ -26,6 +26,8 @@ const batchDocumentSchema = z.object({
         tags: z.array(z.string()).optional(),
         brand: z.string().optional(),
         category: z.string().optional(),
+        price: z.number().nonnegative().optional(),
+        imageUrl: z.string().url().optional(),
       }),
     )
     .min(1),

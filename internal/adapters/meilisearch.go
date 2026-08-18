@@ -2,8 +2,10 @@ package adapters
 
 import (
 	"encoding/json"
+	"errors"
 	"mini-search-platform/internal/models"
 	"mini-search-platform/internal/search"
+	"net/http"
 	"sync"
 
 	"github.com/meilisearch/meilisearch-go"
@@ -26,8 +28,10 @@ var (
 type MeilisearchEngine struct {
 	Index meilisearch.IndexManager
 
-	mu                 sync.Mutex
-	initializedTenants map[string]bool
+	// mu guards only the tenantInit map itself, never the network calls
+	// that perform the actual initialization — see tenantIndex.
+	mu         sync.Mutex
+	tenantInit map[string]*sync.Once
 }
 
 func Init(host string, apiKey string) *MeilisearchEngine {
@@ -121,42 +125,89 @@ func (e *MeilisearchEngine) Search(query string, options search.SearchOptions) (
 
 // tenantIndex lazily initializes (searchable/filterable/sortable attributes)
 // and returns the Meilisearch index for a given tenant. Index creation and
-// settings updates are idempotent, so it is safe to call this on every
-// request; the initialization work itself only runs once per tenant per
-// process (tracked via initializedTenants) to avoid unnecessary calls.
+// settings updates are idempotent (see isIndexAlreadyExists), so it is safe
+// to call this on every request; the initialization work itself only runs
+// once per tenant per process, via a per-tenant sync.Once, so concurrent
+// requests for the *same* tenant don't race, while requests for *different*
+// tenants are never serialized behind each other's network calls.
 func (e *MeilisearchEngine) tenantIndex(tenantID string) (meilisearch.IndexManager, error) {
 	indexName := search.TenantIndexName(tenantID)
 	idx := Client.Index(indexName)
 
+	once := e.tenantOnce(indexName)
+
+	var initErr error
+	once.Do(func() {
+		initErr = initTenantIndex(idx, indexName)
+	})
+	if initErr != nil {
+		// Allow a future call to retry initialization instead of caching
+		// the failure forever.
+		e.mu.Lock()
+		if e.tenantInit[indexName] == once {
+			delete(e.tenantInit, indexName)
+		}
+		e.mu.Unlock()
+		return nil, initErr
+	}
+
+	return idx, nil
+}
+
+// tenantOnce returns the sync.Once guarding initialization of the given
+// tenant index, creating it under lock if it doesn't exist yet. The lock is
+// only ever held for this map lookup/insert, never across a network call.
+func (e *MeilisearchEngine) tenantOnce(indexName string) *sync.Once {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if e.initializedTenants == nil {
-		e.initializedTenants = make(map[string]bool)
+	if e.tenantInit == nil {
+		e.tenantInit = make(map[string]*sync.Once)
 	}
-	if e.initializedTenants[indexName] {
-		return idx, nil
+	once, ok := e.tenantInit[indexName]
+	if !ok {
+		once = &sync.Once{}
+		e.tenantInit[indexName] = once
 	}
+	return once
+}
 
+// initTenantIndex creates (if needed) and configures a tenant's index.
+// Meilisearch instances backed by persistent storage will return an
+// "index_already_exists" (409) error for CreateIndex after a process
+// restart, since the index survives; that error is expected and non-fatal.
+func initTenantIndex(idx meilisearch.IndexManager, indexName string) error {
 	if _, err := Client.CreateIndex(&meilisearch.IndexConfig{
 		Uid:        indexName,
 		PrimaryKey: "id",
-	}); err != nil {
-		return nil, err
+	}); err != nil && !isIndexAlreadyExists(err) {
+		return err
 	}
 
 	if _, err := idx.UpdateSearchableAttributes(&tenantSearchableAttrs); err != nil {
-		return nil, err
+		return err
 	}
 	if _, err := idx.UpdateFilterableAttributes(&tenantFilterableAttrs); err != nil {
-		return nil, err
+		return err
 	}
 	if _, err := idx.UpdateSortableAttributes(&tenantSortableAttrs); err != nil {
-		return nil, err
+		return err
 	}
 
-	e.initializedTenants[indexName] = true
-	return idx, nil
+	return nil
+}
+
+// isIndexAlreadyExists reports whether err is Meilisearch's response to
+// attempting to create an index that already exists (HTTP 409 /
+// "index_already_exists"), which is an expected, idempotent outcome for our
+// lazy per-tenant initialization rather than a real failure.
+func isIndexAlreadyExists(err error) bool {
+	var meiliErr *meilisearch.Error
+	if !errors.As(err, &meiliErr) {
+		return false
+	}
+	return meiliErr.StatusCode == http.StatusConflict ||
+		meiliErr.MeilisearchApiError.Code == "index_already_exists"
 }
 
 // IndexTenantDocuments indexes documents into the tenant's isolated index,

@@ -50,7 +50,7 @@ in `docs/load-test-results.md`) rather than treated as request failures.
 |--------------------|--------------------------|---------|
 | `LOCUST_HOST`       | `http://localhost:8080`  | Control-plane base URL (also Locust's own `--host` default) |
 | `E2E_EMAIL`         | `assessor+loadgen@e2e.test` | Allow-listed signup email (`ALLOWED_SIGNUP_EMAILS`) |
-| `E2E_PASSWORD`      | `LoadGen123!`             | Password for that user |
+| `E2E_PASSWORD`      | *(required, no default)*  | Password for that user -- pick your own test-only value |
 | `CATALOG_SCALE`     | `1.0`                     | Multiplier applied to each tenant's doc count |
 | `SEED_BATCH_SIZE`   | `200`                     | Docs per `/documents/batch` call while seeding |
 | `SCENARIO`          | `baseline`                | `baseline` \| `noisy` \| `burst` \| `indexquery` |
@@ -82,7 +82,7 @@ pip install --index-url https://pypi.org/simple/ -r load/requirements.txt
 cd load
 LOCUST_HOST=http://localhost:8080 \
 E2E_EMAIL=assessor+loadgen@e2e.test \
-E2E_PASSWORD='LoadGen123!' \
+E2E_PASSWORD='<pick-your-own-test-password>' \
 CATALOG_SCALE=0.02 \
 python3 seed.py
 ```

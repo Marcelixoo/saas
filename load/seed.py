@@ -19,7 +19,7 @@ duplicate.
 Usage:
     LOCUST_HOST=http://localhost:8080 \
     E2E_EMAIL=assessor+loadgen@e2e.test \
-    E2E_PASSWORD='LoadGen123!' \
+    E2E_PASSWORD=<your test password> \
     CATALOG_SCALE=0.05 \
     python3 load/seed.py
 """
@@ -35,7 +35,9 @@ from tenants import TENANTS, build_document
 
 API_URL = os.environ.get("LOCUST_HOST", os.environ.get("E2E_API_URL", "http://localhost:8080")).rstrip("/")
 EMAIL = os.environ.get("E2E_EMAIL", "assessor+loadgen@e2e.test")
-PASSWORD = os.environ.get("E2E_PASSWORD", "LoadGen123!")
+# No hardcoded default on purpose -- always supply a test-only password via
+# E2E_PASSWORD for whichever target you're seeding.
+PASSWORD = os.environ.get("E2E_PASSWORD")
 NAME = os.environ.get("E2E_NAME", "Load Generator")
 CATALOG_SCALE = float(os.environ.get("CATALOG_SCALE", "1.0"))
 SEED_BATCH_SIZE = int(os.environ.get("SEED_BATCH_SIZE", "200"))
@@ -127,6 +129,12 @@ def seed_catalog(token: str, slug: str, tenant: dict, count: int) -> int:
 
 
 def main():
+    if not PASSWORD:
+        raise RuntimeError(
+            "E2E_PASSWORD is not set. Provide a test-only password for the "
+            "allow-listed E2E_EMAIL user (see load/README.md)."
+        )
+
     print(f"[seed] target API: {API_URL}")
     print(f"[seed] catalog scale factor: {CATALOG_SCALE}")
 

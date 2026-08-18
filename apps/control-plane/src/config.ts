@@ -1,0 +1,40 @@
+function parseAllowlist(raw: string | undefined): { emails: Set<string>; domains: Set<string> } {
+  const emails = new Set<string>();
+  const domains = new Set<string>();
+  if (!raw) return { emails, domains };
+  for (const entry of raw.split(',')) {
+    const trimmed = entry.trim().toLowerCase();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('@')) {
+      domains.add(trimmed);
+    } else {
+      emails.add(trimmed);
+    }
+  }
+  return { emails, domains };
+}
+
+export const config = {
+  port: Number(process.env.PORT ?? 8080),
+  host: process.env.HOST ?? '0.0.0.0',
+  databaseUrl: process.env.DATABASE_URL ?? '',
+  redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
+  searchApiUrl: process.env.SEARCH_API_URL ?? 'http://search-api:8081',
+  freeSearchLimit: Number(process.env.FREE_SEARCH_LIMIT ?? 30),
+  proSearchLimit: Number(process.env.PRO_SEARCH_LIMIT ?? 300),
+  allowedSignupEmails: parseAllowlist(process.env.ALLOWED_SIGNUP_EMAILS),
+};
+
+export function isEmailAllowed(email: string): boolean {
+  const lowered = email.toLowerCase();
+  if (config.allowedSignupEmails.emails.size === 0 && config.allowedSignupEmails.domains.size === 0) {
+    // No allowlist configured => allow all (useful for local dev without env set).
+    return true;
+  }
+  if (config.allowedSignupEmails.emails.has(lowered)) return true;
+  const atIndex = lowered.lastIndexOf('@');
+  if (atIndex === -1) return false;
+  const domain = `@${lowered.slice(atIndex + 1)}`;
+  return config.allowedSignupEmails.domains.has(domain);
+}

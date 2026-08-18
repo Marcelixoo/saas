@@ -53,7 +53,13 @@ export function useSeedCatalog(slug: string) {
     {
       revalidate: false,
       onSuccess: () => {
-        if (slug) mutate(`/organizations/${slug}/usage`);
+        if (!slug) return;
+        mutate(`/organizations/${slug}/usage`);
+        // Revalidate every cached catalog page for this org (each page/limit
+        // combination is keyed independently by useCatalog).
+        mutate(
+          (key) => typeof key === 'string' && key.startsWith(`/organizations/${slug}/documents?`),
+        );
       },
     },
   );

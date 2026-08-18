@@ -27,9 +27,25 @@ export interface BatchDocument {
   [key: string]: unknown;
 }
 
+export interface CatalogDocument {
+  id: string;
+  title: string;
+  price?: number;
+  imageUrl?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogListResult {
+  documents: CatalogDocument[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export interface SearchApiClient {
   search(tenantId: string, query: string): Promise<SearchResponse>;
   indexBatch(tenantId: string, documents: BatchDocument[]): Promise<{ accepted: number }>;
+  listDocuments(tenantId: string, offset: number, limit: number): Promise<CatalogListResult>;
 }
 
 async function toApiError(statusCode: number, body: string): Promise<never> {
@@ -79,6 +95,23 @@ export function createSearchApiClient(baseUrl: string = config.searchApiUrl): Se
         return toApiError(res.statusCode, bodyText);
       }
       return JSON.parse(bodyText) as { accepted: number };
+    },
+
+    async listDocuments(tenantId: string, offset: number, limit: number): Promise<CatalogListResult> {
+      let res;
+      try {
+        res = await request(`${baseUrl}/internal/documents?offset=${offset}&limit=${limit}`, {
+          method: 'GET',
+          headers: { 'X-Tenant-ID': tenantId },
+        });
+      } catch (err) {
+        throw Errors.unavailable(`Failed to reach search API: ${(err as Error).message}`);
+      }
+      const bodyText = await res.body.text();
+      if (res.statusCode >= 400) {
+        return toApiError(res.statusCode, bodyText);
+      }
+      return JSON.parse(bodyText) as CatalogListResult;
     },
   };
 }

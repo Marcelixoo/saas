@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,14 +26,32 @@ import (
 func meilisearchAvailable(t *testing.T, host string) bool {
 	t.Helper()
 
-	addr := host
-	addr = addr[len("http://"):]
+	addr := hostPort(host)
+
 	conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
 	if err != nil {
 		return false
 	}
 	conn.Close()
 	return true
+}
+
+// hostPort extracts a dialable "host:port" from a Meilisearch host value,
+// which may be a full URL ("http://localhost:7700", "https://host:7700")
+// or already a bare "host:port". Falls back to the default Meilisearch port
+// when none is present.
+func hostPort(host string) string {
+	addr := host
+
+	if u, err := url.Parse(host); err == nil && u.Host != "" {
+		addr = u.Host
+	}
+
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		addr = net.JoinHostPort(strings.TrimSuffix(addr, ":"), "7700")
+	}
+
+	return addr
 }
 
 func newTestRouter(t *testing.T) (*gin.Engine, string) {

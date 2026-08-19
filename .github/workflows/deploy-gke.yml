@@ -25,6 +25,12 @@ name: Deploy to GKE
 #   PROD_API_URL                    - browser-reachable control-plane URL, baked into the
 #                                      web image at build time (NEXT_PUBLIC_API_URL), e.g.
 #                                      https://api.example.com
+#
+# Optional repo secret (Settings -> Secrets and variables -> Actions -> Secrets):
+#   SLACK_DEPLOY_WEBHOOK_URL        - Slack "Incoming Webhook" URL. When set, the
+#                                      notify-on-failure job posts to it if
+#                                      build-and-deploy fails (see docs/observability.md).
+#                                      Absent -> that job silently no-ops.
 
 on:
   push:
@@ -244,3 +250,38 @@ jobs:
             exit 1
           fi
           echo "All deployments rolled out successfully."
+
+  notify-on-failure:
+    # Fires whenever build-and-deploy fails for any reason (image build,
+    # rollout timeout + failed auto-rollback, etc.) — see the "Wait for
+    # rollout" step above, which already fails the job on a bad rollout but
+    # (until this job existed) alerted nobody. This job never blocks or
+    # gates the deploy; it only reports on an outcome that already happened.
+    needs: [check-config, build-and-deploy]
+    if: always() && needs.check-config.outputs.configured == 'true' && needs.build-and-deploy.result == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Notify deploy failure (Slack webhook, if configured)
+        env:
+          # Optional repo secret (Settings -> Secrets and variables ->
+          # Actions -> Secrets): SLACK_DEPLOY_WEBHOOK_URL, an "Incoming
+          # Webhook" URL for the channel that should hear about failed
+          # prod deploys. The secret's value is never echoed/logged here.
+          # This step is a deliberate no-op — not a failure — when the
+          # secret is absent, so adding this job never breaks CI for a
+          # fork/clone that hasn't configured it yet.
+          SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$SLACK_DEPLOY_WEBHOOK_URL" ]; then
+            echo "::notice::SLACK_DEPLOY_WEBHOOK_URL secret not set; skipping deploy-failure notification. See infra/monitoring/README.md and docs/observability.md for how to configure it."
+            exit 0
+          fi
+          payload=$(printf '{"text":":rotating_light: GKE deploy failed for %s @ %s\\n%s"}' \
+            "${GITHUB_REPOSITORY}" "${COMMIT_SHA}" "${RUN_URL}")
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            -d "$payload" "$SLACK_DEPLOY_WEBHOOK_URL" \
+            || echo "::warning::Failed to deliver deploy-failure Slack notification"

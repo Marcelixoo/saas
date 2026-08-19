@@ -5,12 +5,14 @@ multi-tenant search SaaS platform. The frozen cross-team interface it
 implements lives in [`CONTRACT.md`](CONTRACT.md); this file explains how the
 pieces fit together and why.
 
-> Historical note: `docs/ARCHITECTURE_DIAGRAMS.md`, `docs/SWAGGER_UI_GUIDE.md`
-> and `docs/swagger.yaml` describe an earlier, single-service iteration of
-> this project (a standalone "Fashion Catalog API" on Cloud Run with no
-> tenancy, control plane, or Kubernetes runtime). They are retained for
-> history but are **superseded** by this document, `README.md`, and
-> `CONTRACT.md` for the current submission.
+> Companion docs: [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md)
+> holds the rendered runtime + CI/CD diagrams for this same GKE deployment, and
+> [`docs/README.md`](docs/README.md) is the documentation hub / onboarding guide.
+> Note: `docs/swagger.yaml` (served by the Go `search-api`'s own `/docs`
+> endpoint) documents that service's **internal, legacy** API surface — the
+> per-IP routes that predate the control plane and are never exposed through the
+> Ingress (see §6). The public, tenant-scoped contract is `CONTRACT.md`, not that
+> spec.
 
 ## 1. Component topology
 

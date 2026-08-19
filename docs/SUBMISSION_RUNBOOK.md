@@ -341,11 +341,10 @@ codebase, so we reconcile it here against what's actually implemented:
   (pre-dating the control plane) still exist in the codebase for migration
   continuity but are not exposed through the Ingress and are not the quota
   mechanism this submission should be evaluated against.
-- `docs/ARCHITECTURE_DIAGRAMS.md`, `docs/SWAGGER_UI_GUIDE.md`, and
-  `docs/swagger.yaml` / `docs/specs/swagger.json` describe the project's
-  earlier single-service (pre-multi-tenant) design and are retained for
-  history; they are superseded by `ARCHITECTURE.md`, `CONTRACT.md`, and this
-  runbook.
+- `docs/swagger.yaml` / `docs/specs/swagger.json` document the Go
+  `search-api`'s own internal, legacy API surface (served by that service's
+  `/docs` Swagger endpoint), not the public control-plane contract — the
+  authoritative public contract is `CONTRACT.md`.
 - No HPA/autoscaling is configured in the k8s manifests (optional per the
   task brief).
 

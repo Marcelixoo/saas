@@ -278,77 +278,11 @@ E2E_PASSWORD
 Tests generate unique org names/slugs per run (timestamp/UUID suffix). No cleanup
 endpoints required.
 
-## 9. Ownership boundaries (do not cross without orchestrator sign-off)
+---
 
-| Area                         | Owner            | Paths |
-|------------------------------|------------------|-------|
-| Acceptance suite             | Orchestrator     | `tests/e2e/**`, `playwright.config.*`, `.github/workflows/acceptance-e2e.yml` |
-| Control plane                | Agent A          | `apps/control-plane/**` |
-| Go search tenancy            | Agent B          | `cmd/**`, `internal/**`, `config/**`, `pkg/**` (search-only) |
-| Local dev platform           | Agent C          | `docker-compose.yml`, local Dockerfiles, `.env.example` |
-| Admin UI                     | Agent D          | `apps/web/**` |
-| Kubernetes runtime           | Agent E          | `infra/**` |
-| Load generator               | Agent F          | `load/**`, `docs/load-test-results.md` |
-| Security/observability       | Agent G          | focused middleware/config/CI, `THREAT_MODEL_ANALYSIS.md` |
-| Submission docs              | Agent H          | `README.md`, `ARCHITECTURE.md`, `docs/**` |
-
-### UI rebrand page-agents (feat/ui-rebrand)
-
-The rebrand is split by page. The **foundation** (main agent) owns the shell and
-shared wiring; each **page-agent** owns exactly the files below (frontend section
-+ its hooks + its backend), which are file-disjoint so they build in parallel.
-
-The shell is a **sidebar console** (`app/components/{Sidebar,Topbar,Dashboard}.tsx`
-+ `app/components/sections/sections.tsx`); each page is a section under
-`app/components/sections/*Section.tsx`. Members were split out of Settings into
-their own section; an `UpgradeRequestsSection` is a deferred placeholder.
-
-| Agent | Frontend (owns) | Backend (owns) |
-|-------|-----------------|----------------|
-| Foundation | `app/page.tsx`, `app/components/{AuthPanel,Sidebar,Topbar,Dashboard}.tsx`, `app/components/sections/{sections,UpgradeRequestsSection}.tsx`, `lib/api.ts` (client surface), `lib/hooks/{useOrganizations,useActiveOrg,useUsage,useMe,mutations}.*`, `tests/e2e/*` | `app.ts` wiring, route stubs `routes/{metrics,documents,members}.ts`, Go `main.go` route + `internal/{search/documents.go,adapters/meilisearch_documents.go,handlers/internal_documents.go}` stubs |
-| A — Metrics | `app/components/sections/MetricsSection.tsx`, `lib/hooks/useUsageTimeseries.ts` | `apps/control-plane/src/routes/metrics.ts` (+ test) |
-| B — Search | `app/components/sections/SearchSection.tsx`, `lib/hooks/useSearch.ts` | `routes/organizations.ts` (search route only), `lib/searchClient.ts`; Go `internal/adapters/meilisearch.go`, `internal/search/engine.go`, `internal/handlers/internal_search.go` (+ tests) |
-| C — Catalog | `app/components/sections/CatalogSection.tsx`, `lib/hooks/useCatalog.ts` | `routes/documents.ts` (+ test); Go `internal/search/documents.go`, `internal/adapters/meilisearch_documents.go`, `internal/handlers/internal_documents.go` |
-| D — Settings/Members | `app/components/sections/{SettingsSection,MembersSection}.tsx`, `lib/hooks/{useMembers,useUpdateOrganization}.ts` | `routes/members.ts` (members CRUD + `PATCH /organizations/:slug`) (+ test) |
-
-Shared files edited once by Foundation (`app.ts`, `cmd/server/main.go`,
-`apps/web/package.json`, `apps/web/lib/api.ts`) are frozen for page-agents —
-consume them, do not re-edit. `lib/api.ts` already exports every client function
-the pages need.
-
-## 10. Web data-hook layer (SWR)
-
-Every API transaction goes through a hook in `apps/web/lib/hooks/` — components
-never call `fetch`/`lib/api` functions for queries directly. Queries use `useSWR`,
-mutations use `useSWRMutation`; SWR keys are the raw control-plane paths
-(e.g. `/organizations`, `/organizations/:slug/usage`) so a mutation invalidates
-by path with `mutate(...)`. Frozen hook surface:
-
-```
-useOrganizations()            -> { organizations, isLoading, error, mutate }
-useActiveOrg()                -> { organizations, selectedSlug, selectedOrg, setSelectedSlug, ... }
-useUsage(slug)                -> { usage, isLoading, error, mutate }
-useUsageTimeseries(slug,days) -> { points, isLoading, error }              # Agent A
-useSearch(slug)               -> { results, run(params), isSearching, error } # Agent B
-useCatalog(slug,{offset,limit})-> { documents, total, isLoading, error }   # Agent C
-useMembers(slug)              -> { members, isLoading, error, mutate }      # Agent D
-# mutations (return { trigger, isMutating, error }):
-useCreateOrganization()  useUpdatePlan(slug)  useSeedCatalog(slug)
-useUpdateOrganization(slug)   # Agent D            useInviteMember(slug) / useRemoveMember(slug)  # Agent D
-```
-
-The bearer token is read from `localStorage` by the shared `swrFetcher`; a global
-`SWRConfig.onError` in `page.tsx` logs the user out on `401`. Conditional fetching:
-pass a falsy slug to disable a query.
-
-## 11. React performance rules (must follow)
-
-Per the React Best Practices guide, all rebrand code must: derive state during
-render (never mirror props/other state into `useState`+`useEffect`); define no
-component inside another component; use functional `setState` updates; use
-`useDeferredValue`/`useTransition` for the search input; render conditionals with
-explicit ternaries (never `cond && node` on a number/`0`); use `toSorted`/`Set`/`Map`
-instead of mutating sorts and array scans; hoist regexes to module scope; lazily
-initialize expensive `useState`; keep effect dependency arrays narrow; and put
-side-effects in event handlers, not effects. SWR provides request dedup/caching;
-do not hand-roll fetch caches.
+> Sections above are the frozen cross-component contract. Build-process
+> coordination that used to live here (per-agent ownership boundaries, the
+> `feat/ui-rebrand` page split, the web SWR hook surface, and React coding
+> rules) has been retired now that the rebrand has shipped — the Admin UI's hook
+> layer is documented in code under `apps/web/lib/hooks/`, and the development
+> workflow is summarized in the [documentation hub](docs/README.md).

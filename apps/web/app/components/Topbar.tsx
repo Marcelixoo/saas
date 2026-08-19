@@ -6,6 +6,7 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
+import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { useActiveOrg } from '@/lib/hooks/useActiveOrg';
 import { SECTION_LABELS, type SectionId } from './sections/sections';
@@ -27,6 +28,7 @@ export default function Topbar({
 }) {
   const { selectedOrg } = useActiveOrg();
   const { mutate } = useSWRConfig();
+  const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const orgName = selectedOrg?.name ?? '—';
   const plan = selectedOrg?.plan ?? 'FREE';
@@ -37,6 +39,13 @@ export default function Topbar({
     setRefreshing(true);
     try {
       await mutate(() => true);
+      toast({ variant: 'success', title: 'Data refreshed' });
+    } catch {
+      toast({
+        variant: 'error',
+        title: 'Refresh failed',
+        description: 'Some data may be out of date. Please try again.',
+      });
     } finally {
       setRefreshing(false);
     }

@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FacetChip } from '@/components/ui/facet-chip';
 import { SearchInput } from '@/components/ui/search-input';
 import { Select } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import {
   Table,
@@ -146,6 +147,7 @@ export default function SearchSection() {
               data-testid="search-sort"
               aria-label="Sort results"
               value={sortMode}
+              disabled={isSearching}
               onChange={(e) => handleSortChange(e.target.value as SortMode)}
               className="w-auto"
             >
@@ -165,6 +167,8 @@ export default function SearchSection() {
                   key={value}
                   data-testid={`search-facet-${value}`}
                   active={category === value}
+                  disabled={isSearching}
+                  className="disabled:pointer-events-none disabled:opacity-50"
                   onClick={() => handleFacetClick(value)}
                 >
                   {value} ({count})
@@ -177,7 +181,47 @@ export default function SearchSection() {
 
       <Card>
         <div data-testid="search-results">
-          {!hasSearched ? (
+          {isSearching ? (
+            <Table aria-busy="true" aria-label="Loading search results">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">#</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Brand</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="w-32">Score</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Skeleton className="h-3 w-4" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <Skeleton className="size-9 rounded-sm" />
+                        <Skeleton className="h-3.5 w-36" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3.5 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3.5 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-1.5 w-16 rounded-full" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="ml-auto h-3.5 w-12" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : !hasSearched ? (
             <EmptyState
               title="No search yet"
               description="Enter a query to preview results from this catalog."
@@ -265,7 +309,7 @@ export default function SearchSection() {
         </div>
       </Card>
 
-      {hasSearched && hits.length > 0 ? (
+      {!isSearching && hasSearched && hits.length > 0 ? (
         <div className="flex items-center justify-between text-xs text-ink-muted">
           <span>
             Page {currentPage + 1} of {totalPages} &middot; {total} result{total === 1 ? '' : 's'}
@@ -275,7 +319,7 @@ export default function SearchSection() {
               variant="secondary"
               size="sm"
               type="button"
-              disabled={currentPage <= 0}
+              disabled={currentPage <= 0 || isSearching}
               onClick={() => handlePageChange(Math.max(0, offset - PAGE_SIZE))}
             >
               Previous
@@ -284,7 +328,7 @@ export default function SearchSection() {
               variant="secondary"
               size="sm"
               type="button"
-              disabled={currentPage + 1 >= totalPages}
+              disabled={currentPage + 1 >= totalPages || isSearching}
               onClick={() => handlePageChange(offset + PAGE_SIZE)}
             >
               Next

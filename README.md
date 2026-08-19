@@ -8,9 +8,7 @@ tracking.
 This README is the entry point for an assessor evaluating the submission.
 For the frozen cross-component contract, see [`CONTRACT.md`](CONTRACT.md).
 For component responsibilities and the tenant-isolation trust boundary, see
-[`ARCHITECTURE.md`](ARCHITECTURE.md). For step-by-step bring-up, test
-commands, and a demo script, see
-[`docs/SUBMISSION_RUNBOOK.md`](docs/SUBMISSION_RUNBOOK.md).
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## What's here
 
@@ -146,14 +144,13 @@ and known limitations are in
 
 ## Further reading
 
+- [`docs/`](docs/README.md) — **documentation hub / onboarding guide**: start here
+  for a guided tour of the system, data model, threat model, and cloud architecture,
+  with references into every detailed doc.
 - [`CONTRACT.md`](CONTRACT.md) — frozen cross-component contract (topology,
   trust boundary, API shapes, data model, rate limits, `data-testid`s).
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — component responsibilities, trust
   boundary explanation, data model, deployment topologies, CI/CD.
-- [`docs/SUBMISSION_RUNBOOK.md`](docs/SUBMISSION_RUNBOOK.md) — bring-up steps
-  for Docker Compose and local k3d, test commands, the load generator, the
-  Playwright suite, assessor configuration, security-control summary, known
-  limitations, and a five-minute demo script.
 - [`infra/README.md`](infra/README.md) — Kubernetes runtime details (owned by
   the infra work; kept as the source of truth for k8s specifics).
 - [`load/README.md`](load/README.md) — load generator details.

@@ -1,10 +1,11 @@
-# `/decisions`
+# Architecture Decision Records
 
-The `decisions` folder is where all Architectural Decision Records (ADR's) are stored.
-These files capture important decisions made as a project develops.
+Short records of significant, hard-to-reverse decisions and the reasoning
+behind them, kept close to the code.
 
-For decisions affecting multiple projects or the whole group, consider creating a separate repository (i.e. `decisions-of-discovery-team`) or a new page on Confluence.
+- [`0002_golang_as_programming_language.md`](0002_golang_as_programming_language.md)
+  — why the search-api is written in Go.
 
-Examples:
-
-- https://github.com/dapr/dapr/blob/master/docs/decision_records
+For the overall system design and its rationale, see the
+[documentation hub](../docs/README.md), [`../ARCHITECTURE.md`](../ARCHITECTURE.md),
+and [`../THREAT_MODEL_ANALYSIS.md`](../THREAT_MODEL_ANALYSIS.md).

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { ApiError, type SearchParams } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,19 @@ export default function SearchSection() {
   const [sortMode, setSortMode] = useState<SortMode>('relevance');
   const [offset, setOffset] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // Switching the active org must not leave the previous org's query/results
+  // on screen — `useSearch` already drops its stale `results` on slug change,
+  // but this panel's own local state (query text, facet, pagination, and
+  // whether a search has run) needs to reset too so the section fully
+  // rescopes to the newly selected organization.
+  useEffect(() => {
+    setQuery('');
+    setCategory(null);
+    setSortMode('relevance');
+    setOffset(0);
+    setHasSearched(false);
+  }, [slug]);
 
   function buildParams(overrides: Partial<SearchParams> = {}): SearchParams {
     return {

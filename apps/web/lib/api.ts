@@ -33,6 +33,23 @@ export type UsageTimeseries = {
   points: UsagePoint[];
 };
 
+/** Small-window granularities for the fine-grained (line-chart) timeseries. */
+export type UsageWindow = '1h' | '3h' | '24h' | '7d';
+
+/** One bucket's usage counts in window mode. `ts` is an ISO 8601 bucket start. */
+export type UsageWindowPoint = {
+  ts: string;
+  search: number;
+  index: number;
+  rateLimited: number;
+};
+
+export type UsageWindowTimeseries = {
+  organizationId: string;
+  window: UsageWindow;
+  points: UsageWindowPoint[];
+};
+
 export type SearchHit = { id: string; title: string; [key: string]: unknown };
 
 /** Facet name -> (value -> count), as returned by Meilisearch facet distribution. */
@@ -235,6 +252,15 @@ export async function getUsageTimeseries(
   token?: string,
 ): Promise<UsageTimeseries> {
   return request(`/organizations/${slug}/usage/timeseries?days=${days}`, {}, token);
+}
+
+/** Fine-grained (sub-day-capable) usage counts for a small time window. */
+export async function getUsageTimeseriesWindow(
+  slug: string,
+  usageWindow: UsageWindow,
+  token?: string,
+): Promise<UsageWindowTimeseries> {
+  return request(`/organizations/${slug}/usage/timeseries?window=${usageWindow}`, {}, token);
 }
 
 export async function search(

@@ -48,9 +48,12 @@ resource "google_monitoring_uptime_check_config" "api_healthz" {
   }
 }
 
-# Alert when either uptime check's success rate drops to zero across all
-# checker regions for two consecutive checks — i.e. it's actually down, not
-# a single flaky region.
+# Alert when either uptime check's mean success rate across checker regions
+# falls below 20% over the alignment window — i.e. it's actually down
+# everywhere, not a single flaky region. ALIGN_FRACTION_TRUE yields a per-series
+# success fraction (0..1, a DOUBLE); REDUCE_MEAN averages that across regions,
+# so the comparison is a DOUBLE-vs-DOUBLE fraction (REDUCE_COUNT_FALSE cannot be
+# used here — it rejects DOUBLE-valued aligned series).
 resource "google_monitoring_alert_policy" "web_uptime_failure" {
   display_name = "saas-web-down"
   combiner     = "OR"
@@ -64,12 +67,12 @@ resource "google_monitoring_alert_policy" "web_uptime_failure" {
     condition_threshold {
       filter          = "resource.type = \"uptime_url\" AND metric.type = \"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id = \"${google_monitoring_uptime_check_config.web.uptime_check_id}\""
       comparison      = "COMPARISON_LT"
-      threshold_value = 1
+      threshold_value = 0.2
       duration        = "120s"
       aggregations {
         alignment_period     = "120s"
         per_series_aligner   = "ALIGN_FRACTION_TRUE"
-        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        cross_series_reducer = "REDUCE_MEAN"
         group_by_fields      = ["resource.label.host"]
       }
     }
@@ -94,12 +97,12 @@ resource "google_monitoring_alert_policy" "api_uptime_failure" {
     condition_threshold {
       filter          = "resource.type = \"uptime_url\" AND metric.type = \"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id = \"${google_monitoring_uptime_check_config.api_healthz.uptime_check_id}\""
       comparison      = "COMPARISON_LT"
-      threshold_value = 1
+      threshold_value = 0.2
       duration        = "120s"
       aggregations {
         alignment_period     = "120s"
         per_series_aligner   = "ALIGN_FRACTION_TRUE"
-        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        cross_series_reducer = "REDUCE_MEAN"
         group_by_fields      = ["resource.label.host"]
       }
     }

@@ -44,7 +44,7 @@ CONTRACT.md's "search-api/postgres/redis/meilisearch are internal-only" rule.
 2. **`search-api.Dockerfile`** — identical to the root `Dockerfile` except
    it compiles with `go build -mod=vendor`. In this sandboxed build
    environment, outbound HTTPS to `proxy.golang.org` is intercepted by a
-   corporate TLS proxy whose CA isn't trusted inside the `golang:1.25-alpine`
+   corporate TLS proxy whose CA isn't trusted inside the `golang:1.26.10-alpine`
    builder image, so `go mod download` fails with
    `x509: certificate signed by unknown authority`. Running `go mod vendor`
    once on the host (which *does* trust the proxy CA via the macOS system

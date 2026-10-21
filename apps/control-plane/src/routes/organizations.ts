@@ -138,6 +138,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
     const { q, filter, sort, limit: searchLimit, offset: searchOffset, facets } = parsedQuery.data;
 
     const { organization } = await resolveMembership(app.deps.prisma, slug, request.authUser!.id);
+    request.searchSli = { tenantId: organization.id, plan: organization.plan };
 
     const limit = organization.plan === 'PRO' ? config.proSearchLimit : config.freeSearchLimit;
     const { allowed } = await checkAndIncrementRateLimit(app.deps.redis, organization.id, limit);

@@ -10,7 +10,7 @@
 #   go mod vendor
 #   docker build -f infra/docker/search-api.Dockerfile -t saas/search-api:local .
 
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26.10-alpine AS builder
 
 WORKDIR /build
 

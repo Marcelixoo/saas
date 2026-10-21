@@ -1,5 +1,5 @@
 # k8s build of apps/control-plane. Behaviorally identical to
-# apps/control-plane/Dockerfile (owned by Agent A) except:
+# apps/control-plane/Dockerfile except:
 #   1. it also trusts any CA cert dropped into infra/docker/certs/*.pem
 #      before running npm — needed when building behind a TLS-intercepting
 #      corporate egress proxy (npm's prisma postinstall step fetches engine

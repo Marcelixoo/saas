@@ -10,7 +10,7 @@ const listDocumentsQuerySchema = z.object({
 });
 
 /**
- * Catalog document listing — owned by Agent C (Catalog).
+ * Catalog document listing.
  *
  * Proxies to the internal Go `GET /internal/documents` endpoint, injecting
  * the trusted, server-resolved organization UUID as `X-Tenant-ID` (see

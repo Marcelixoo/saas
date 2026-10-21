@@ -14,7 +14,7 @@ const renameOrgSchema = z.object({
 });
 
 /**
- * Members CRUD + organization rename — owned by Agent D (Settings).
+ * Members CRUD + organization rename.
  */
 export async function memberRoutes(app: FastifyInstance): Promise<void> {
   // GET /organizations/:slug/members  (any member)

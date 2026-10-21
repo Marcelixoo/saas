@@ -5,7 +5,7 @@
 #   scripts/dev-up.sh          # data tier + Go search-api (always available)
 #   scripts/dev-up.sh full     # also brings up control-plane + web
 #                               # (requires apps/control-plane/Dockerfile and
-#                               # apps/web/Dockerfile from Agent A / Agent D)
+#                               # apps/web/Dockerfile)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

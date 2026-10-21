@@ -51,15 +51,15 @@ Base URL (local): `http://localhost:8080`. All request/response bodies are JSON.
 | GET    | `/organizations`                        | Bearer      | orgs the user belongs to |
 | POST   | `/organizations`                        | Bearer      | creator becomes OWNER, plan defaults to FREE |
 | PATCH  | `/organizations/:slug/plan`             | OWNER/ADMIN | body `{ "plan": "FREE" \| "PRO" }` |
-| PATCH  | `/organizations/:slug`                  | OWNER/ADMIN | rename org; body `{ "name": "New Name" }` (Agent D) |
+| PATCH  | `/organizations/:slug`                  | OWNER/ADMIN | rename org; body `{ "name": "New Name" }` |
 | GET    | `/organizations/:slug/usage`            | member      | totals: search count + rate-limit rejections |
-| GET    | `/organizations/:slug/usage/timeseries` | member      | per-day counts, last `days` days (Agent A) |
-| GET    | `/organizations/:slug/search?q=...`     | member      | rate limited; proxied to Go w/ trusted X-Tenant-ID (Agent B) |
-| GET    | `/organizations/:slug/documents`        | member      | paginated listing of indexed docs (Agent C) |
+| GET    | `/organizations/:slug/usage/timeseries` | member      | per-day counts, last `days` days |
+| GET    | `/organizations/:slug/search?q=...`     | member      | rate limited; proxied to Go w/ trusted X-Tenant-ID |
+| GET    | `/organizations/:slug/documents`        | member      | paginated listing of indexed docs |
 | POST   | `/organizations/:slug/documents/batch`  | OWNER/ADMIN | tenant injected; proxied to Go |
-| GET    | `/organizations/:slug/members`          | member      | list org members (Agent D) |
-| POST   | `/organizations/:slug/members`          | OWNER/ADMIN | invite member by email (Agent D) |
-| DELETE | `/organizations/:slug/members/:userId`  | OWNER/ADMIN | remove member (Agent D) |
+| GET    | `/organizations/:slug/members`          | member      | list org members |
+| POST   | `/organizations/:slug/members`          | OWNER/ADMIN | invite member by email |
+| DELETE | `/organizations/:slug/members/:userId`  | OWNER/ADMIN | remove member |
 
 ### Request/response shapes
 
@@ -108,10 +108,10 @@ tenant index before indexing this batch (a clean rebuild, preserving index
 settings), so a re-seed doesn't accumulate stale/duplicate documents. The web
 `seedCatalog` sets `reset=true` on the first chunk only.
 
-`PATCH /organizations/:slug` (Agent D) — request `{ "name": "New Name" }`;
+`PATCH /organizations/:slug` — request `{ "name": "New Name" }`;
 Response `200`: `{ "id", "name", "slug", "plan" }` (slug is stable; only the name changes).
 
-`GET /organizations/:slug/usage/timeseries?days=14` (Agent A) — `days` defaults to
+`GET /organizations/:slug/usage/timeseries?days=14` — `days` defaults to
 14, clamp to a sane max (e.g. 90). Response `200`:
 ```json
 { "organizationId": "<uuid>", "days": 14,
@@ -134,7 +134,7 @@ buckets. Response `200`:
 window is present, zero-filled. Same `search`/`index`/`rateLimited` counting rules as the
 `days` mode. An invalid `window` value is `400`.
 
-`GET /organizations/:slug/search` (Agent B) — accepts `q` (required) plus optional
+`GET /organizations/:slug/search` — accepts `q` (required) plus optional
 `filter` (Meilisearch filter expression), `sort` (comma-separated, e.g. `price:asc`),
 `limit`, `offset`, and `facets` (comma-separated fields). Response `200`:
 ```json
@@ -146,24 +146,24 @@ window is present, zero-filled. Same `search`/`index`/`rateLimited` counting rul
 echo the effective pagination. Backward compatible: a bare `?q=` still returns
 `{ query, hits, total }`.
 
-`GET /organizations/:slug/documents?offset=0&limit=20` (Agent C) — Response `200`:
+`GET /organizations/:slug/documents?offset=0&limit=20` — Response `200`:
 ```json
 { "documents": [ { "id": "sku-1", "title": "Red Nike Shoe", "price": 59.9, "imageUrl": "https://..." } ],
   "total": 500, "offset": 0, "limit": 20 }
 ```
 
-`GET /organizations/:slug/members` (Agent D) — Response `200`:
+`GET /organizations/:slug/members` — Response `200`:
 ```json
 { "members": [ { "userId": "<uuid>", "email": "a@e2e.test", "name": "Ada", "role": "OWNER" } ] }
 ```
 
-`POST /organizations/:slug/members` (Agent D) — request `{ "email": "b@e2e.test", "role": "MEMBER" }`;
+`POST /organizations/:slug/members` — request `{ "email": "b@e2e.test", "role": "MEMBER" }`;
 Response `201`: `{ "member": { "userId", "email", "name", "role" } }`. The invited email
 MUST already belong to a registered user (creates a `Membership`; does not create users).
 `role` is `ADMIN` or `MEMBER` — inviters cannot grant `OWNER`, and no action may escalate
 the caller's own role. `409` if already a member.
 
-`DELETE /organizations/:slug/members/:userId` (Agent D) — Response `204`. Removing the
+`DELETE /organizations/:slug/members/:userId` — Response `204`. Removing the
 last `OWNER` is rejected with `400`/`409`.
 
 ### Standard error codes
@@ -178,8 +178,8 @@ Base URL (internal): `http://search-api:8081`. Tenant supplied via header.
 
 | Method | Path                | Required header | Behavior |
 |--------|---------------------|-----------------|----------|
-| GET    | `/internal/search?q=...` | `X-Tenant-ID: <org-uuid>` | search that tenant's index; accepts `filter`, `sort`, `limit`, `offset`, `facets` (Agent B) |
-| GET    | `/internal/documents?offset=&limit=` | `X-Tenant-ID: <org-uuid>` | paginated listing of that tenant's docs (Agent C) |
+| GET    | `/internal/search?q=...` | `X-Tenant-ID: <org-uuid>` | search that tenant's index; accepts `filter`, `sort`, `limit`, `offset`, `facets` |
+| GET    | `/internal/documents?offset=&limit=` | `X-Tenant-ID: <org-uuid>` | paginated listing of that tenant's docs |
 | POST   | `/internal/documents/batch` | `X-Tenant-ID: <org-uuid>` | index into that tenant's index; `?reset=true` truncates first |
 
 - `/internal/search` returns `{ query, hits, total }` and, when `facets` are
@@ -277,12 +277,3 @@ E2E_PASSWORD
 
 Tests generate unique org names/slugs per run (timestamp/UUID suffix). No cleanup
 endpoints required.
-
----
-
-> Sections above are the frozen cross-component contract. Build-process
-> coordination that used to live here (per-agent ownership boundaries, the
-> `feat/ui-rebrand` page split, the web SWR hook surface, and React coding
-> rules) has been retired now that the rebrand has shipped — the Admin UI's hook
-> layer is documented in code under `apps/web/lib/hooks/`, and the development
-> workflow is summarized in the [documentation hub](docs/README.md).

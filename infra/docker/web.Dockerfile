@@ -1,7 +1,7 @@
 # k8s-specific build of apps/web that bakes NEXT_PUBLIC_API_URL in at build
 # time (Next.js only reads NEXT_PUBLIC_* env vars during `next build`, never
-# at container runtime). This file lives under infra/ (Agent E's ownership)
-# so apps/web/Dockerfile (Agent D's ownership) is left untouched.
+# at container runtime). This file lives under infra/
+# so apps/web/Dockerfile is left untouched.
 #
 # The value MUST be the control-plane URL reachable from the assessor's
 # BROWSER (the Traefik ingress host), because the Next.js Admin UI runs

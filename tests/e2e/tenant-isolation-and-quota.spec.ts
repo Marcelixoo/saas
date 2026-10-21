@@ -15,7 +15,7 @@ import {
  * public application interfaces are touched — never Go/Meilisearch/PG/Redis
  * directly.
  *
- * INTENTIONALLY RED until control plane (Agent A) + Go tenancy (Agent B) land.
+ * INTENTIONALLY RED until control plane + Go tenancy land.
  */
 
 async function createOrg(ctx: any, token: string, name: string) {

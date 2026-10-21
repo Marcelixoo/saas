@@ -228,7 +228,7 @@ export async function updatePlan(
   );
 }
 
-/** Rename an organization (OWNER/ADMIN). Backend: Agent D (Settings). */
+/** Rename an organization (OWNER/ADMIN). */
 export async function updateOrganization(
   slug: string,
   name: string,
@@ -245,7 +245,7 @@ export async function getUsage(slug: string, token?: string): Promise<Usage> {
   return request(`/organizations/${slug}/usage`, {}, token);
 }
 
-/** Per-day usage counts for the last `days` days. Backend: Agent A (Metrics). */
+/** Per-day usage counts for the last `days` days. */
 export async function getUsageTimeseries(
   slug: string,
   days = 14,
@@ -278,7 +278,7 @@ export async function search(
   return request(`/organizations/${slug}/search?${qs.toString()}`, {}, token);
 }
 
-/** Paginated view of a tenant's indexed documents. Backend: Agent C (Catalog). */
+/** Paginated view of a tenant's indexed documents. */
 export async function listDocuments(
   slug: string,
   offset = 0,

@@ -109,15 +109,17 @@ resource "google_logging_metric" "search_latency_ms" {
 resource "google_logging_metric" "search_api_latency_ms" {
   name        = "saas_search_api_latency_ms"
   description = "search-api /internal/search latency in milliseconds for HTTP 200, labeled by tenant."
+  # GKE promotes slog's httpRequest group to LogEntry.httpRequest, so URL
+  # and status are not under jsonPayload. latency_ms stays in jsonPayload
+  # and can be 0 for sub-millisecond searches (duration.Milliseconds()).
   filter      = <<-EOT
     resource.type = "k8s_container"
     resource.labels.cluster_name = "${var.cluster_name}"
     resource.labels.namespace_name = "${var.namespace}"
     resource.labels.container_name = "search-api"
     jsonPayload.msg = "request completed"
-    jsonPayload.httpRequest.requestUrl =~ "^/internal/search(\\?|$)"
-    jsonPayload.httpRequest.status = 200
-    jsonPayload.latency_ms > 0
+    httpRequest.requestUrl =~ "^/internal/search(\\?|$)"
+    httpRequest.status = 200
   EOT
 
   value_extractor = "EXTRACT(jsonPayload.latency_ms)"

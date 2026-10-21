@@ -225,8 +225,12 @@ numeric `latency_ms` next to `httpRequest.latency`:
 ```
 
 The dashboard's "search-api p95" widget is this line, filtered to
-`/internal/search` and HTTP 200. If control-plane p95 is 400ms and
-search-api p95 is 40ms, the time is in Fastify/Redis/auth, not Meilisearch.
+`/internal/search` and HTTP 200. GKE promotes the `httpRequest` group to
+`LogEntry.httpRequest`, so that filter uses `httpRequest.requestUrl` /
+`httpRequest.status`, not `jsonPayload.httpRequest.*`. `latency_ms` stays
+in `jsonPayload` and can be 0 for sub-millisecond searches. If
+control-plane p95 is 400ms and search-api p95 is 40ms, the time is in
+Fastify/Redis/auth, not Meilisearch.
 
 ### 5.6 Metrics, queries, dashboard
 

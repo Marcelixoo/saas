@@ -1,4 +1,4 @@
-# Kubernetes runtime (Agent E)
+# Kubernetes runtime
 
 Deploys the full platform (per `CONTRACT.md` §1) to a local **k3d** cluster
 using Kustomize. Owns `infra/**` only.
@@ -38,7 +38,7 @@ CONTRACT.md's "search-api/postgres/redis/meilisearch are internal-only" rule.
    control-plane's **host-reachable ingress URL**, not the in-cluster DNS
    name `http://control-plane:8080` (unreachable from a browser). The
    committed `apps/web/Dockerfile` doesn't accept this as a build arg, so
-   this file (owned by Agent E, not Agent D) adds `ARG NEXT_PUBLIC_API_URL`
+   this file adds `ARG NEXT_PUBLIC_API_URL`
    before the `next build` step. `apps/web/Dockerfile` itself is untouched.
 
 2. **`search-api.Dockerfile`** — identical to the root `Dockerfile` except

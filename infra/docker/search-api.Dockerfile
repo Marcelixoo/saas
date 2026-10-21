@@ -2,7 +2,7 @@
 # image build never needs outbound network access to the Go module proxy
 # (the environment used to build this deployment sits behind a TLS-
 # intercepting egress proxy that Go's module fetcher does not trust).
-# This mirrors the root Dockerfile (owned by Agent B) exactly, aside from
+# This mirrors the root Dockerfile exactly, aside from
 # that one flag, and lives under infra/ so the root Dockerfile stays
 # untouched.
 #

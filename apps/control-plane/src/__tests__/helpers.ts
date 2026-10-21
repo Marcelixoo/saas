@@ -29,6 +29,7 @@ export function createFakeSearchClient(): TestContext['searchClient'] {
       calls.index.push({ tenantId, documents, reset });
       return { accepted: documents.length };
     },
+    // Catalog listing fake.
     async listDocuments(tenantId, offset, limit) {
       calls.listDocuments.push({ tenantId, offset, limit });
       return {

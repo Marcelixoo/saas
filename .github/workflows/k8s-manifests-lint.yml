@@ -1,10 +1,5 @@
 name: K8s manifests lint
 
-# Non-blocking sanity check that the Kustomize overlays owned by Agent E
-# (infra/k8s/**) render cleanly. It does NOT deploy anywhere (no cluster
-# credentials are available in CI) — see infra/README.md for the verified
-# local k3d deployment procedure and evidence.
-
 on:
   pull_request:
     paths:

@@ -11,8 +11,7 @@ type TenantListResponse struct {
 
 // TenantDocumentLister is implemented by engines that can page through a
 // tenant's indexed documents. Kept separate from TenantSearchEngine so the
-// Catalog page-agent (Agent C) can own its files without touching the search
-// tenancy code (Agent B).
+// Catalog can own its files without touching the search tenancy code.
 type TenantDocumentLister interface {
 	ListTenantDocuments(tenantID string, offset, limit int) (TenantListResponse, error)
 }

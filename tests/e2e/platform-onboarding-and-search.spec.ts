@@ -8,7 +8,7 @@ import { runId, uniqueEmail, E2E_PASSWORD } from './helpers';
  *   register -> log in -> create an org (FREE) -> seed a catalog ->
  *   search a known product -> see the result -> see usage information.
  *
- * INTENTIONALLY RED until the Admin UI (Agent D) and control plane (Agent A)
+ * INTENTIONALLY RED until the Admin UI and control plane
  * exist. Couples only to agreed data-testid attributes, never CSS classes.
  */
 test('assessor onboards through the UI and searches a seeded catalog', async ({ page }) => {

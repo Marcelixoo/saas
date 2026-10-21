@@ -4,15 +4,9 @@
 # Quick start (data tier + Go search API only, always available today):
 #   docker compose up --build
 #
-# Full stack (also brings up control-plane + web) once Agent A / Agent D land
+# Full stack (also brings up control-plane + web) once control-plane + web land
 # apps/control-plane/Dockerfile and apps/web/Dockerfile on main:
 #   docker compose --profile full up --build
-#
-# control-plane and web are gated behind the "full" profile because their
-# Dockerfiles do not exist on this branch yet (owned by Agent A and Agent D
-# respectively). The service definitions below are wired per CONTRACT.md so
-# that once those Dockerfiles land, `docker compose --profile full up --build`
-# brings up the entire stack with no further changes to this file.
 
 services:
   postgres:
@@ -96,7 +90,6 @@ services:
     # Internal-only per CONTRACT.md (never exposed publicly). No host port
     # mapping is published; other containers reach it at http://search-api:8081.
 
-  # --- Requires apps/control-plane/Dockerfile (owned by Agent A) ---
   control-plane:
     profiles: ["full"]
     build:
@@ -123,7 +116,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # --- Requires apps/web/Dockerfile (owned by Agent D) ---
   web:
     profiles: ["full"]
     build:

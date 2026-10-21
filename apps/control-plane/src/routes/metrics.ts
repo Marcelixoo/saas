@@ -47,7 +47,7 @@ function tallyEvent(bucket: Counts, event: { operation: string; statusCode: numb
 }
 
 /**
- * Metrics endpoints — owned by Agent A (Metrics).
+ * Metrics endpoints.
  */
 export async function metricsRoutes(app: FastifyInstance): Promise<void> {
   // GET /organizations/:slug/usage/timeseries?days=14  (any member)

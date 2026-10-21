@@ -64,32 +64,3 @@ Notes:
 Raw Locust CSV exports for each run (`*_stats.csv`, `*_stats_history.csv`)
 were produced with `--csv=<scenario>` per the invocations in
 `load/README.md`.
-
-## Known blocker: `docker compose --profile full up --build`
-
-This sandbox's Docker daemon could reach public registries for plain image
-`pull`s (e.g. `getmeili/meilisearch`, `postgres`, `redis`, `locustio/locust`
-all pulled fine), but outbound HTTPS *from inside a build container*
-(`go mod download` inside the `search-api` build, `npm ci` inside the
-`control-plane`/`web` builds) failed TLS verification
-(`x509: certificate signed by unknown authority`) against
-`proxy.golang.org` / npm registries -- consistent with a MITM proxy at the
-container-build network layer whose CA isn't trusted by the base images.
-This is an environment/network restriction, not an application bug, and is
-outside this agent's lane (`docker-compose.yml`, `Dockerfile`s, Go/Node code
-are owned by other agents).
-
-To still validate the load generator end-to-end without touching any
-out-of-lane files, this run used `docker compose` only for the
-already-published images (`postgres`, `redis`, `meilisearch`, with
-Meilisearch's host port remapped via an ad hoc, uncommitted compose
-override to avoid colliding with another concurrently-running agent's stack
-on port 7700), and ran `search-api` (`go build` + the resulting binary) and
-`control-plane` (`npm install`/`tsc`/`prisma migrate deploy` + `node
-dist/server.js`) directly as host processes -- both build fully offline
-once dependencies are fetched over plain host networking (which, unlike the
-container build network, could reach `proxy.golang.org` and
-`registry.npmjs.org`). All Locust traffic still went exclusively through
-the public Fastify HTTP contract on `http://localhost:8080`, so this
-validates the load generator itself rather than a full containerized
-deployment.

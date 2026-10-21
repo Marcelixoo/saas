@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { config } from './config';
@@ -9,11 +9,17 @@ import { metricsRoutes } from './routes/metrics';
 import { documentRoutes } from './routes/documents';
 import { memberRoutes } from './routes/members';
 import type { AppDeps } from './types';
+import { classifySearchSli, SEARCH_SLI_LOG_MESSAGE, SEARCH_SLI_OPERATION } from './lib/searchSli';
 
-export function buildApp(deps: AppDeps): FastifyInstance {
-  const app = Fastify({ logger: true });
+export interface BuildAppOptions {
+  logger?: FastifyServerOptions['logger'];
+}
+
+export function buildApp(deps: AppDeps, options: BuildAppOptions = {}): FastifyInstance {
+  const app = Fastify({ logger: options.logger ?? true });
 
   app.decorate('deps', deps);
+  app.decorateRequest('searchSli', null);
 
   // Registered before routes so preflight (OPTIONS) requests and the
   // Access-Control-Allow-* headers on real requests are handled for every
@@ -53,6 +59,27 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get('/healthz', async () => ({ status: 'ok' }));
+
+  // Customer-facing search SLI: one structured line per request that got
+  // as far as a resolved organization (see docs/observability.md §5).
+  // Tenant/plan are set by the search handler after resolveMembership so
+  // a 429 still carries labels; 401s and other pre-tenant failures skip
+  // this line because searchSli stays null.
+  app.addHook('onResponse', async (request, reply) => {
+    const sli = request.searchSli;
+    if (!sli) return;
+    request.log.info(
+      {
+        sli_operation: SEARCH_SLI_OPERATION,
+        tenant_id: sli.tenantId,
+        plan: sli.plan,
+        latency_ms: Math.round(reply.elapsedTime),
+        http_status: reply.statusCode,
+        sli_result: classifySearchSli(reply.statusCode),
+      },
+      SEARCH_SLI_LOG_MESSAGE,
+    );
+  });
 
   app.register(authRoutes);
   app.register(organizationRoutes);

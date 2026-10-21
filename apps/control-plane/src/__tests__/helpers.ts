@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
-import { buildApp } from '../app';
+import { buildApp, type BuildAppOptions } from '../app';
 import type { SearchApiClient } from '../lib/searchClient';
 import type { FastifyInstance } from 'fastify';
 
@@ -29,7 +29,6 @@ export function createFakeSearchClient(): TestContext['searchClient'] {
       calls.index.push({ tenantId, documents, reset });
       return { accepted: documents.length };
     },
-    // Catalog listing fake — separate block, owned by Agent C (Catalog).
     async listDocuments(tenantId, offset, limit) {
       calls.listDocuments.push({ tenantId, offset, limit });
       return {
@@ -42,12 +41,12 @@ export function createFakeSearchClient(): TestContext['searchClient'] {
   };
 }
 
-export async function buildTestApp(): Promise<TestContext> {
+export async function buildTestApp(options: BuildAppOptions = {}): Promise<TestContext> {
   const prisma = new PrismaClient();
   const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:56479');
   const searchClient = createFakeSearchClient();
 
-  const app = buildApp({ prisma, redis, searchClient });
+  const app = buildApp({ prisma, redis, searchClient }, options);
   await app.ready();
 
   return { app, prisma, redis, searchClient };

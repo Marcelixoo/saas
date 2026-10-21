@@ -2,7 +2,7 @@ module mini-search-platform
 
 go 1.24.5
 
-toolchain go1.25.13
+toolchain go1.26.10
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
